@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: src_greenery
+    schema: public
+    database: dbt
+    quoting:
+      database: false
+      schema: false
+      identifier: false
+    tables:
+      - name: users
+      - name: addresses
+      - name: orders
+      - name: promos
+      - name: order_items
+      - name: products
+      - name: events
