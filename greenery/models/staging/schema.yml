@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: stg_greenery__address
+    description: Address information associated with greenery's users and their orders
+
+  - name: stg_greenery__events
+    description: Greenery's users site sessions and events
+    columns:
+      - name: event_guid
+        tests:
+        - not_null
+        - unique
+
+  - name: stg_greenery__orders
+    description: Greenery's orders, delivery status and shipping
+    columns:
+      - name: order_guid
+        tests:
+        - not_null
+        - unique
+
+  - name: stg_greenery__order_items
+    description: Products and quantity in a order 
+  
+  - name: stg_greenery__products
+    description: Greenery's products and inventory
+
+  - name: stg_greenery__promos
+    description: Greenery's promotions amd theie statuses
+  
+  - name: stg_greenery__users
+    description: User details for greenery's users
+    columns:
+      - name: user_guid
+        tests:
+        - not_null
+        - unique
