@@ -36,3 +36,13 @@ models:
     # Config indicated by + and applies to all files under models/example/
     example:
       +materialized: view
+    marts:
+      greenery:
+        marketing:
+          post-hook:
+            - "GRANT SELECT ON {{ this }} TO reporting"
+        product:
+          post-hook:
+            - "GRANT SELECT ON {{ this }} TO reporting"
+    on-run-end:
+      - "grant USAGE ON SCHEMA {{ schema}} to reporting"
