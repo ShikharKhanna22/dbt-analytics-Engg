@@ -93,3 +93,31 @@ Developer Role: project_dbt_executor_DEVELOPER
 SA Role: project_DBT_PROD_SERVICE_ACCOUNT_ROLE
 database: project_PROD
 warehouse: project_PROD_WH
+
+
+
+DECLARE sql_query STRING;
+DECLARE result ARRAY;
+
+BEGIN
+    -- Initialize an empty array to store results
+    LET result = ARRAY_CONSTRUCT();
+
+    -- Loop through each column in the target table
+    FOR col IN (
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'your_table_name'
+    )
+    DO
+        -- Dynamically construct and execute the query to calculate the minimum value
+        LET sql_query = 'SELECT MIN(' || col.COLUMN_NAME || ') AS min_value FROM your_table_name';
+        LET min_value = (EXECUTE IMMEDIATE :sql_query);
+        
+        -- Append the result to the array
+        LET result = ARRAY_APPEND(result, OBJECT_CONSTRUCT('COLUMN_NAME', col.COLUMN_NAME, 'MIN_VALUE', min_value));
+    END FOR;
+
+    -- Return the results as a table
+    RETURN TABLE(FLATTEN(INPUT => :result));
+END;
