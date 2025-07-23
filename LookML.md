@@ -1,6 +1,6 @@
 
 
-### Introduction to LookML
+### Introduction to LookML - As per official documentation
 
 - LookML, short for Looker Modeling Language, is the language that is used in Looker to create semantic data models.
 - You can use LookML to describe dimensions, aggregates, calculations, and data relationships in your SQL database.
@@ -421,3 +421,158 @@ https://cloud.google.com/looker/docs/reference/param-field-parameter
 https://cloud.google.com/looker/docs/reference/param-field-filter
 https://cloud.google.com/looker/docs/working-with-joins
 https://cloud.google.com/looker/docs/reference/param-model-include
+
+----
+
+Day2: July, 22
+
+### UDEMY: Looker and LookML - George Smarts - 9 hour
+
+**Section 10: LookML basics - 55. Explore the LookML environment**
+
+Development vs Production Mode - switching
+
+Go to the home page > development mode turned on > click on develop > go to projects
+
+- Two sample lookML projects that are ready - e-commerce and flights.
+- And this is a this is the actual development environment within Looker.
+- This is where we write our lookml. We create our models, explores, views.
+
+
+#### 56. Elements of LookML
+- So it all starts with a Lookml project - which is going to house everything under it.
+- Once you have the Lookml project, the lowest level is the different fields that are going to come from
+the tables at the backend. dimensions, Measures and field sets.
+- All these fields are located in the tables at the backend, and you use these tables in order to create
+views.
+- These views are then used in a model, and the way you expose the views for the users in a model with
+explores and use joins in order to join the different views (which correspond to tables at the back end)
+- which will make it possible for you to integrate data from different datasets and do in-depth analysis.
+- And then obviously all this can be used in order to create dashboards and visualizations.
+
+
+#### 57. Fields
+
+
+- lowest level in the lookML hierarchy, and this level is the field.
+- There are two main types of fields. The first one is dimensions.
+- fields - represent a (one) column of data in the database table at the back end.
+  - In some cases, they can actually represent a transformation or combination of different columns in the back end.
+- Then you have measures. pretty much usually a sum, a max or a count that provides you a numerical number.
+  - SQL query that creates this numerical number based on specific criteria.
+- Another type of field that I don't see people mention is the filter type of field.
+- In general, you don't need to create your own filters. A specific column. Usually the dimensions and measures that you have created will be available to use for filtering.
+- However, there are some specific cases in which you want to create a filter type of field
+
+The most important thing to remember here is that the lowest level within the Lookml hierarchy is the field, and there are two main types of fields. We have the dimensions and we have the measures.
+
+#### 58. Views
+
+- Second level in the lookML hierarchy, after fields
+- Views are a representation of tables in a database, where dimensions, measures, dimension_groups will be defined.
+- tables can come from a database or derived within looker
+
+
+#### 59. Explore
+
+- The next level within the lookml hieararchy is the explore, and you will find the explore menu here within the top navigation bar.
+- explore is based on one or multiple views that are exposed for the analysts to use.
+- within a model you create the explore and the explore is based on one or multiple views.
+- creating an explore allows you to use this view when creating logs or dashboards.
+- From the Explorer menu, click on users (explore), which opens our navigations on the left.
+- You see the different dimensions And we have a few measures and we can now use this explorer in order to start building our look here.
+- Now, if we go to develop menu and if I go to e-commerce and I find the view-users, You see that all the Different dimensions and measures that we have within the explore-users is actually here within the view-users.
+- And then if I go to the e-commerce model, here we have an explore-users.
+- Explore is just how you expose the views or combinations of views within this EXPLORE menu that you can use for analysis
+
+
+#### 60. Models
+
+- in order to use the explores, you need to house them somewhere. And this is where the model comes.
+- we are on the e-commerce model file here and within this model we have all the different explores that are related to the e-commerce project.
+- you house all the explores and you define some settings such as which database connection is to be used.
+- If you want to create a new model, you simply click here and click on Create Model.
+- the first line identifies the connection that's to be used in order to query the data.
+- the second line includes all the different views that are available in this project, with this wild card here.
+- However, if you want to include only specific views, you can do that.
+- we have all the different explorers stated here that we want to use.
+- notice that for order-items (explore) we have a few different joins which allows us to join the different views together
+- The most important thing to for you to remember for now is that Models House the explores that we use within a project.
+
+#### 61. Project
+
+- highest level in the hierarchy within Lookml is the project.
+- A project is a collection of files that describe the objects, connections, the models, the views, the user interface elements that will be used when we query the data using SQL.
+- So if we go to develop, we will see that we are in the project e-commerce, all these different files here on the left, they describe how the database tables relate to each other and how Looker should understand these tables.
+- There are basically two main types of files here - You have the model. And you have the view files 
+- A model will specify the connection to a single database. And this is where the developer can define their explores. So within one model file you can have multiple explores.
+- So we are in the project e-commerce, and then within this project we are in the model e-commerce here and here we define the explore (order_items, users, user_order_facts, inventory_items and etcetera).
+- And now if we go to the Explores menu, under e-commerce-model you see the same explores that we have listed here. So the Explore menu here on the top is actually organized by the model names.
+
+
+
+- Let's now explore the different menus within the project. So first we have the files browser here.
+- we can create multiple types of files, we can create a folder under which you can put files, you can create a model from here. You can create a view either from a table or from scratch.
+- you can create a project manifest. A project Manifest file is usually used to specify module localization settings to add an extension to your project, Add custom visualizations to your project, or specify other projects that are to be imported into the current project.
+- You can create a dashboard from here, you can create a document. You can also create a local strings file and also you can create a generic lookml file.
+- the two main types of files that you're going to have in a project are going to be the model and the View. 
+
+
+> So this is what a project really is. It's pretty much the highest level in the hierarchy that's going to be used in order to house absolutely everything from models, views, manifest files and all the different settings.
+
+
+- if I go to the second option on the menu. I'm gonna go to the object browser, which is pretty much the model and the different explores.
+- And if I expand on the explores, can see the dimensions and measures within every single explorer.
+- If you want to get an understanding of what's within a project, I'll advise you to come here to the object browser because it's going to be much easier to understand the structure.
+
+
+- Then you can use the find and replace function from here. Remember that lookML is case sensitive.
+- git actions, So Looker uses git to record changes and manage file versions. So this is going to be what's going to be used for the version control for your project.
+- each project within Lookml will correspond to a git repository and each developer branch will correlate to a git branch.
+- And then the last button here in the menu is settings. And here you change the project configurations. For example, this project is called e-commerce. From here you can change the name, you can put the Git production branch name, you can choose how clean you want your code to be before you commit this to production. For example, you can decide that it's mandatory to fix both errors and warnings before committing only errors.
+- Then you have options for GitHub integration. Deployment and then you can switch to branch management.
+
+#### 62. Dimension and Measure Fields
+
+- go to the **object browser** and then we go to the orders-view here. And then we open the Different dimensions and measures that we have within this view.
+- So here we really have three different types of fields. So we have the dimension here. We have Dimension Group.
+- A dimension group is used to group together. For example, a time period where you want to use year, month, quarter week. So these are the dimensions that are relevant to each other and you pretty much group them together.
+- And then you have the measure here, which is the count.
+
+
+To see where are these defined? go to the **file browser** here and now open the orders view. So we have the view orders. Then we have the connection to the table.
+- And then we have the different dimensions here defined.
+- Then here's the Dimension group and the type is time. The data type is datetime. And here are the time frames. So we have the different time periods that we grouped together. And you see that it's created at. So this is when the order was placed.
+
+#### 63. Dimension Types
+
+we have 7 types of dimensions.
+we are again under the eCommerce project and I'm going to go here to the users view.
+And here we're going to have a look at the first type of dimension, which is the string.
+This is really the default dimension type, second type here, which is the number.
+
+
+third type here, which is the YES/NO. So, for example, here the condition is status equal to complete.
+So if you want to show all the complete orders and have a column that's going to allow us to say is
+complete, yes or no, then we simply create this dimension.
+
+
+And the next one is the tier.
+allow you to create really buckets for the data within your database.
+
+
+fifth type of dimension, we have a dimension called location, and the type is location.
+For this, you need the latitude and longitude information available.
+This can be really useful if you want to map certain locations within Looker.
+
+sixth type of dimension is going to be the distance.
+allows us to calculate the distance between the distribution center and the user location.
+So you need two locations in order for this to work.
+
+Seventh type of dimension is also here under users.
+This is the zip code and this simply is going to allow you to specify a zip code.
+And these are really the seven main types of dimension fields within Looker.
+
+#### 64. Create Folders and tidy up your space
+
+
