@@ -575,4 +575,209 @@ And these are really the seven main types of dimension fields within Looker.
 
 #### 64. Create Folders and tidy up your space
 
+---- 
 
+Looker - Packt
+
+Fields, dimensions, measures
+Field - columns, 2 subsets
+dimensions - qualitative/discrete data to categorize, segment, reveal details about data
+measures - numeric, quantitative, agrregatable, continuous, not-discrete to measure, compare
+
+---
+
+Explores, looks, dashboard
+3 different types of objects that serve distinct purposes in the Looker ecosystem:
+
+**Explores** - starting point for exploration for analysts, foundation of your data model, capsule for data with all the data you ever need to analyze. They define how users can query and analyze data by specifying which dimensions and measures are available, how tables join together, and what filters can be applied. Think of an explore as creating a "lens" through which users can examine your data. For example, you might have an explore called "sales_analysis" that joins your orders, customers, and products tables, allowing users to slice and dice sales data in various ways.
+
+**Looks or Reports** are saved queries or reports built on top of explores. When a user creates a visualization or report using an explore, they can save the analysis/report as a look for future reference or sharing. Looks contain the specific field selections, filters, and visualization settings that define a particular analysis. They're essentially bookmarked queries that can be easily accessed and shared with others.
+
+**Dashboards** are collections/compilation of multiple looks (and other content) organized on a single page to provide a comprehensive view of key metrics and insights. They're like executive summaries that bring together related visualizations to tell a cohesive story about your data. A sales dashboard might include looks showing revenue trends, top products, regional performance, and conversion rates all in one place. Enforces interaction between looks.
+
+The relationship flows like this: Explores provide the data structure → Looks create specific analyses → Dashboards organize multiple looks into comprehensive views. Users typically interact with looks and dashboards in the Looker interface, while explores are the underlying LookML code that makes it all possible.
+
+Boards and Folders
+The key difference here again is that folders are used to store looks and reports and dashboards, whereas boards are used to organize them.
+
+
+---
+
+**SQL (Structured Query Language)** is a standard programming language for managing and querying relational databases. It's used to directly retrieve, insert, update, and delete data from database tables. SQL is procedural - you write specific commands telling the database exactly what to do and how to do it.
+
+**LookML** is Looker's modeling language that sits on top of SQL. Instead of writing raw SQL queries, you use LookML to define a semantic layer that describes your data structure, relationships, and business logic. LookML is declarative - you describe what your data means and how it relates, then Looker automatically generates the appropriate SQL queries.
+
+Here are the key differences:
+
+**Abstraction Level**: SQL works directly with database tables and columns, while LookML creates business-friendly abstractions like "Customer Lifetime Value" or "Monthly Recurring Revenue" that translate to complex SQL behind the scenes.
+
+**Reusability**: SQL queries are typically written for specific use cases, while LookML definitions can be reused across many different analyses. Once you define a measure in LookML, anyone can use it without rewriting SQL.
+
+**Maintenance**: With SQL, if your database schema changes, you need to update every affected query manually. With LookML, you update the model definition once, and all dependent queries automatically adapt.
+
+**User Access**: SQL requires technical knowledge to write queries, while LookML enables non-technical users to explore data through a web interface by clicking and dragging the dimensions and measures you've defined.
+
+**Generated Output**: LookML automatically generates optimized SQL queries based on user selections, handling complex joins, aggregations, and filtering logic that would require careful manual coding in pure SQL.
+
+Think of LookML as creating a user-friendly interface and business logic layer on top of your raw SQL data, making analytics accessible to a broader audience while maintaining consistency and reducing errors.
+
+---
+
+In LookML, these three components form a hierarchical structure that builds your data model from the ground up:
+
+**Views** are the foundation - they define individual data objects, typically corresponding to database tables or derived tables. A view contains the dimensions (attributes like customer name, product category, order date) and measures (calculations like count of orders, sum of revenue, average order value) that describe that specific data source. Views also handle data transformations, SQL customizations, and formatting rules for their fields.
+
+**Models** are configuration files that tie everything together at the highest level. They specify which database connection to use, which views to include, and contain the explores that users can access. Models also define global settings like caching policies, access permissions, and datagroups for managing data freshness. Think of a model as the "package" that organizes related views and explores.
+
+**Explores** sit between models and views, defining how users can query and analyze the data. They specify which view serves as the base table and how other views can be joined to it. Explores control what dimensions and measures users can access, define join relationships, set default filters, and establish the query scope. They're essentially the "user interface" for data exploration.
+
+The relationship flows like this:
+- **Models** contain multiple **Explores**
+- **Explores** are built from one or more **Views** 
+- **Views** define the actual data fields and transformations
+
+For example, you might have:
+- A **view** called `orders` with dimensions like order_date and customer_id, plus measures like total_revenue
+- Another **view** called `customers` with customer attributes
+- An **explore** called `sales_analysis` that joins the orders and customers views
+- A **model** file that includes this explore and specifies the database connection
+
+Users interact with explores in the Looker interface, which pulls from the underlying views according to the model's configuration.
+
+---
+
+Here are the most common parameters used to define and configure views in LookML, with practical examples:
+
+#### Basic View Structure
+**datagroup_trigger** - Controls when derived tables refresh
+**sql_table_name** - Specifies the underlying database table or schema.table
+
+```lookml
+view: orders {
+  sql_table_name: ecommerce.fact_orders ;;
+}
+```
+
+**derived_table** - Creates views from custom SQL queries instead of existing tables
+```lookml
+view: customer_summary {
+  derived_table: {
+    sql: SELECT 
+           customer_id,
+           COUNT(*) as total_orders,
+           SUM(order_total) as lifetime_value
+         FROM orders 
+         GROUP BY customer_id ;;
+  }
+}
+
+view: daily_summary {
+  derived_table: {
+    datagroup_trigger: ecommerce_default_datagroup
+    sql: SELECT date, SUM(revenue) FROM orders GROUP BY date ;;
+  }
+}
+```
+
+## View-Level Parameters
+
+**suggestions** - Controls field suggestions in the explore interface
+```lookml
+view: products {
+  suggestions: no  # Disables auto-suggestions for this view
+  
+  dimension: product_name {
+    type: string
+    sql: ${TABLE}.name ;;
+    suggestions: yes  # Override view-level setting for this field
+  }
+}
+```
+
+#### Field Definitions
+
+**dimension** - Defines attributes/categorical data
+```lookml
+dimension: customer_id {
+  type: number
+  sql: ${TABLE}.customer_id ;;
+  primary_key: yes
+}
+
+dimension: customer_tier {
+  type: string
+  sql: CASE 
+         WHEN ${lifetime_value} > 1000 THEN 'Premium'
+         WHEN ${lifetime_value} > 500 THEN 'Standard' 
+         ELSE 'Basic'
+       END ;;
+  label: "Customer Tier"
+  description: "Customer segmentation based on lifetime value"
+}
+
+dimension: conversion_rate {
+  type: number
+  sql: ${conversions} / ${visitors} ;;
+  value_format_name: percent_2  # 15.67%
+}
+
+**dimension** with **drill_fields** - Defines drill-down paths
+
+dimension: category {
+  type: string
+  sql: ${TABLE}.category ;;
+  drill_fields: [subcategory, product_name, brand]
+}
+```
+
+**measure** - Defines calculations and aggregations
+```lookml
+measure: total_revenue {
+  type: sum
+  sql: ${TABLE}.order_total ;;
+  value_format_name: usd
+}
+
+measure: order_count {
+  type: count
+  drill_fields: [order_id, customer_name, order_date]
+}
+
+measure: average_order_value {
+  type: average
+  sql: ${TABLE}.order_total ;;
+  value_format_name: usd_0
+}
+```
+
+#### Dimension Groups (Date/Time Handling)
+
+**dimension_group** - Creates multiple time-based dimensions from a single date field
+```lookml
+dimension_group: created {
+  type: time
+  timeframes: [raw, date, week, month, quarter, year]
+  sql: ${TABLE}.created_at ;;
+}
+
+# This automatically creates:
+# created_raw, created_date, created_week, created_month, etc.
+```
+
+**filter** - Creates filter-only fields for user input
+```lookml
+filter: date_range {
+  type: date
+  description: "Select a date range for analysis"
+}
+
+measure: filtered_revenue {
+  type: sum
+  sql: ${order_total} ;;
+  filters: [order_date: "{% parameter date_range %}"]
+}
+```
+
+
+
+These parameters provide the foundation for building robust, user-friendly data models that translate complex database structures into intuitive business concepts that end users can easily explore and analyze.
