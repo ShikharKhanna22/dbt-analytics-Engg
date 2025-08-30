@@ -779,5 +779,396 @@ measure: filtered_revenue {
 ```
 
 
+In LookML, there are several types of filters that can be applied at different levels (model, explore, and view) to control data access and query behavior. Here's a comprehensive breakdown:
 
-These parameters provide the foundation for building robust, user-friendly data models that translate complex database structures into intuitive business concepts that end users can easily explore and analyze.
+## Model-Level Filters
+
+**Access Filters** - Control data access based on user attributes
+```lookml
+# In model file
+access_grant: sales_team_access {
+  allowed_values: ["sales", "manager"]
+  user_attribute: department
+}
+
+explore: orders {
+  access_filter: {
+    field: region
+    user_attribute: user_region
+  }
+  # Users only see data for their assigned region
+}
+```
+
+**Datagroup Filters** - Control when queries refresh based on data changes
+```lookml
+datagroup: orders_datagroup {
+  sql_trigger: SELECT MAX(updated_at) FROM orders ;;
+  max_cache_age: "1 hour"
+}
+```
+
+## Explore-Level Filters
+
+**Always Filters** - Automatically applied to every query, cannot be removed by users
+```lookml
+explore: orders {
+  always_filter: {
+    filters: [order_date: "7 days", order_status: "-cancelled"]
+  }
+  # Every query will only show last 7 days and exclude cancelled orders
+}
+```
+
+**Conditionally Filters** - Applied based on specific conditions
+```lookml
+explore: orders {
+  conditionally_filter: {
+    filters: [order_date: "30 days"]
+    unless: [customer_id, order_id]
+  }
+  # Applies date filter unless user selects specific customer or order
+}
+```
+
+**SQL Always Where** - Applies raw SQL conditions to every query
+```lookml
+explore: orders {
+  sql_always_where: ${orders.deleted_at} IS NULL 
+                   AND ${orders.test_data} = FALSE ;;
+  # Excludes deleted records and test data from all queries
+}
+```
+
+**SQL Always Having** - Applies conditions to aggregated results
+```lookml
+explore: orders {
+  sql_always_having: ${orders.total_revenue} > 0 ;;
+  # Only shows results where revenue is positive
+}
+```
+
+## View-Level Filters
+
+**Dimension Filters** - Built into dimension definitions
+```lookml
+view: orders {
+  dimension: order_status {
+    type: string
+    sql: ${TABLE}.status ;;
+    suggestions: ["pending", "shipped", "delivered"]
+  }
+  
+  dimension: is_recent {
+    type: yesno
+    sql: ${created_date} >= CURRENT_DATE - 30 ;;
+    # Creates a yes/no filter for recent orders
+  }
+}
+```
+
+**Filter-Only Fields** - Create filter inputs without displaying data
+```lookml
+view: orders {
+  filter: date_filter {
+    type: date
+    description: "Filter orders by date range"
+  }
+  
+  filter: amount_range {
+    type: number
+    description: "Filter by order amount range"
+  }
+  
+  measure: filtered_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [
+      created_date: "{% parameter date_filter %}",
+      order_total: "{% parameter amount_range %}"
+    ]
+  }
+}
+```
+
+**Measure Filters** - Applied within measure calculations
+```lookml
+view: orders {
+  measure: new_customer_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [customers.is_new_customer: "yes"]
+  }
+  
+  measure: high_value_orders {
+    type: count
+    filters: [order_total: ">100"]
+  }
+}
+```
+
+## Parameter-Based Filters
+
+**Parameters** - User-selectable values that modify queries
+```lookml
+view: orders {
+  parameter: time_period {
+    type: unquoted
+    allowed_value: {
+      label: "Last 7 Days"
+      value: "7"
+    }
+    allowed_value: {
+      label: "Last 30 Days" 
+      value: "30"
+    }
+  }
+  
+  dimension: is_in_period {
+    type: yesno
+    sql: ${created_date} >= CURRENT_DATE - {% parameter time_period %} ;;
+  }
+}
+```
+
+## Templated Filters
+
+**Liquid Templates** - Dynamic filters using Looker's templating
+```lookml
+view: orders {
+  measure: dynamic_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [
+      created_date: "{% if orders.created_date._in_query %}
+                     {% else %}
+                     7 days
+                     {% endif %}"
+    ]
+    # Applies default 7-day filter unless user selects specific dates
+  }
+}
+```
+
+## Join-Level Filters
+
+**Join Conditions** - Filters applied during table joins
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} 
+            AND ${customers.status} = 'active' ;;
+    # Only joins with active customers
+  }
+}
+```
+
+**Relationship Filters** - Control which related records are included
+```lookml
+explore: customers {
+  join: orders {
+    type: left_outer
+    sql_on: ${customers.id} = ${orders.customer_id} ;;
+    sql_where: ${orders.order_date} >= '2023-01-01' ;;
+    # Only includes orders from 2023 onwards in the join
+  }
+}
+```
+
+## Security Filters
+
+**User Attribute Filters** - Based on user login attributes
+```lookml
+view: orders {
+  dimension: region {
+    type: string
+    sql: ${TABLE}.region ;;
+  }
+}
+
+explore: orders {
+  access_filter: {
+    field: region
+    user_attribute: allowed_regions
+  }
+  # Users only see data for regions specified in their user attributes
+}
+```
+
+**Row-Level Security** - Filter data based on user identity
+```lookml
+explore: orders {
+  sql_always_where: 
+    CASE 
+      WHEN '{{ _user_attributes['department'] }}' = 'sales' 
+      THEN ${orders.sales_rep_id} = {{ _user_attributes['employee_id'] }}
+      WHEN '{{ _user_attributes['department'] }}' = 'manager'
+      THEN 1=1
+      ELSE 1=0 
+    END ;;
+}
+```
+
+## Filter Combination Examples
+
+**Complex Multi-Level Filtering**
+```lookml
+explore: sales_analysis {
+  # Model level - always exclude test data
+  sql_always_where: ${orders.is_test} = FALSE ;;
+  
+  # Explore level - default to recent data unless specific filters applied
+  conditionally_filter: {
+    filters: [orders.created_date: "30 days"]
+    unless: [orders.order_id, customers.customer_id]
+  }
+  
+  # Access control - regional data restrictions
+  access_filter: {
+    field: orders.region
+    user_attribute: user_region
+  }
+  
+  join: customers {
+    sql_on: ${orders.customer_id} = ${customers.id}
+            AND ${customers.status} IN ('active', 'premium') ;;
+  }
+}
+```
+
+These various filter types work together to create secure, performant, and user-friendly data models that automatically apply appropriate constraints while giving users flexibility to explore data within defined boundaries.
+
+----
+
+The key difference between `always_filter` and `sql_always_where` lies in how they apply filters and their flexibility for end users:
+
+## `always_filter`
+
+**User Interface Level** - Works through Looker's filter interface using dimension and measure names
+```lookml
+explore: orders {
+  always_filter: {
+    filters: [
+      order_date: "7 days",
+      order_status: "-cancelled,refunded"
+    ]
+  }
+}
+```
+
+**Key Characteristics:**
+- Uses LookML field names (dimensions/measures)
+- Applied through Looker's filtering system
+- **Visible to users** - appears in the filter panel
+- **Users can modify values** but cannot remove the filter entirely
+- Follows Looker's filter syntax (like "7 days", ">100", "-cancelled")
+- More flexible and user-friendly
+
+## `sql_always_where`
+
+**Database Level** - Applies raw SQL conditions directly to the WHERE clause
+```lookml
+explore: orders {
+  sql_always_where: 
+    ${orders.created_at} >= CURRENT_DATE - INTERVAL '7 days'
+    AND ${orders.status} NOT IN ('cancelled', 'refunded') ;;
+}
+```
+
+**Key Characteristics:**
+- Uses raw SQL with LookML field references (${table.field})
+- Applied directly to the generated SQL query
+- **Invisible to users** - doesn't appear in filter interface
+- **Cannot be modified or removed** by users
+- Uses database-specific SQL syntax
+- More rigid and secure
+
+## Practical Examples
+
+### `always_filter` Example
+```lookml
+explore: sales_data {
+  always_filter: {
+    filters: [
+      order_date: "30 days",
+      region: "US,Canada"
+    ]
+  }
+}
+```
+- Users see these filters in the UI
+- They can change "30 days" to "90 days" or "2023"
+- They can change "US,Canada" to just "US"
+- But they cannot remove the date or region filter entirely
+
+### `sql_always_where` Example
+```lookml
+explore: sales_data {
+  sql_always_where: 
+    ${orders.deleted_at} IS NULL 
+    AND ${orders.is_test_data} = FALSE
+    AND ${customers.privacy_opt_out} = FALSE ;;
+}
+```
+- Users never see these conditions
+- Automatically excludes deleted records, test data, and privacy opt-outs
+- Cannot be overridden by users
+
+## When to Use Each
+
+**Use `always_filter` when:**
+- You want to provide default filters that users can adjust
+- The filters represent business rules users should be aware of
+- You need user-friendly filter interface
+- Users might legitimately need different time ranges or categories
+
+```lookml
+explore: marketing_campaigns {
+  always_filter: {
+    filters: [
+      campaign_date: "last 3 months",
+      campaign_status: "active"
+    ]
+  }
+  # Users can change to "last 6 months" or include "paused" campaigns
+}
+```
+
+**Use `sql_always_where` when:**
+- You need to enforce data security or quality rules
+- The conditions should never be modified by users
+- You're filtering out system/technical data
+- You need complex SQL logic that doesn't translate well to Looker filters
+
+```lookml
+explore: customer_orders {
+  sql_always_where: 
+    ${customers.gdpr_deleted} = FALSE
+    AND ${orders.processing_status} != 'failed'
+    AND (
+      '{{ _user_attributes['department'] }}' = 'admin' 
+      OR ${orders.created_at} >= CURRENT_DATE - INTERVAL '2 years'
+    ) ;;
+  # Security and data quality rules users should never bypass
+}
+```
+
+## Combined Usage
+You can use both together for layered filtering:
+
+```lookml
+explore: financial_data {
+  # Hard security rule - never visible to users
+  sql_always_where: ${transactions.is_internal} = FALSE ;;
+  
+  # Default business filter - visible and adjustable by users
+  always_filter: {
+    filters: [transaction_date: "current quarter"]
+  }
+}
+```
+
+In summary: `always_filter` provides **guided flexibility** through the UI, while `sql_always_where` enforces **non-negotiable rules** at the database level.
+
+---
