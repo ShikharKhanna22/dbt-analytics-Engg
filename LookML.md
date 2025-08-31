@@ -4403,3 +4403,221 @@ view: products_with_performance {
 ```
 
 The key insight is that **dimensions describe attributes of individual rows**, while **measures aggregate across the rows in your result set**. The choice depends on whether you're analyzing individual entity characteristics or aggregating across multiple entities.
+
+---
+
+Great question! You've spotted an error in my earlier example. That **should not** be defined as a measure - it should be a dimension. Let me explain why:
+
+## The Problem with the Example
+
+```lookml
+# INCORRECT - This is wrong!
+measure: company_name {
+  type: string
+  sql: 'Acme Corporation' ;;
+  # Static value
+}
+```
+
+**Why this is incorrect:**
+- Company name is a **static attribute/label**, not an aggregation
+- Measures are for calculations that aggregate across rows (sum, count, average, etc.)
+- A string literal doesn't need aggregation - it's the same value for every row
+
+## Correct Implementation
+
+### Option 1: As a Dimension (Most Common)
+```lookml
+dimension: company_name {
+  type: string
+  sql: 'Acme Corporation' ;;
+  # Static company identifier
+}
+```
+
+### Option 2: As a Parameter (More Flexible)
+```lookml
+parameter: company_name {
+  type: string
+  default_value: "Acme Corporation"
+  # Can be changed by users if needed
+}
+
+dimension: display_company {
+  type: string
+  sql: '{% parameter company_name %}' ;;
+}
+```
+
+### Option 3: From Database/Config
+```lookml
+dimension: company_name {
+  type: string
+  sql: ${TABLE}.company_name ;;  # From database
+  # OR from a configuration table
+}
+```
+
+## When to Use Dimensions vs Measures for Static Values
+
+### Dimensions for Static Values (Correct)
+```lookml
+# Labels and identifiers
+dimension: report_title {
+  type: string
+  sql: 'Q4 Sales Report' ;;
+}
+
+# Static calculations that describe each row
+dimension: tax_rate {
+  type: number
+  sql: 0.08 ;;  # 8% tax rate applied to each row
+}
+
+# Static categories
+dimension: business_unit {
+  type: string
+  sql: 'Retail Division' ;;
+}
+
+# Current timestamp as of query execution
+dimension: report_generated_at {
+  type: string
+  sql: CURRENT_TIMESTAMP() ;;
+}
+```
+
+### Measures for Aggregated Values (Correct)
+```lookml
+# Count of records
+measure: total_records {
+  type: count
+}
+
+# Static number that gets "aggregated" (though this is unusual)
+measure: company_founded_year {
+  type: max  # or min, they'll be the same
+  sql: 1995 ;;
+  # This would return 1995 regardless of grouping
+}
+
+# More realistic: constant used in calculations
+measure: target_revenue {
+  type: max
+  sql: 1000000 ;;  # $1M target, same across all groups
+}
+
+measure: revenue_vs_target_percent {
+  type: number
+  sql: (${total_revenue} / ${target_revenue}) * 100 ;;
+}
+```
+
+## Real-World Examples
+
+### Dashboard Headers and Labels
+```lookml
+view: dashboard_metadata {
+  # CORRECT: Dimensions for static labels
+  dimension: dashboard_title {
+    type: string
+    sql: 'Executive Sales Dashboard' ;;
+  }
+  
+  dimension: last_updated {
+    type: string
+    sql: FORMAT_TIMESTAMP('%Y-%m-%d %H:%M', CURRENT_TIMESTAMP()) ;;
+  }
+  
+  dimension: data_source {
+    type: string
+    sql: 'Production Database - sales.orders' ;;
+  }
+  
+  # INCORRECT: These should NOT be measures
+  # measure: dashboard_title { ... }  # Wrong!
+}
+```
+
+### Business Constants
+```lookml
+view: business_metrics {
+  
+  # CORRECT: Static business values as dimensions
+  dimension: standard_commission_rate {
+    type: number
+    sql: 0.05 ;;  # 5% commission rate
+  }
+  
+  dimension: company_fiscal_year_start {
+    type: string
+    sql: 'April' ;;
+  }
+  
+  # CORRECT: Use these dimensions in measure calculations
+  measure: total_commission_owed {
+    type: sum
+    sql: ${order_total} * ${standard_commission_rate} ;;
+    value_format_name: usd
+  }
+}
+```
+
+### Report Metadata
+```lookml
+view: report_context {
+  
+  # Static report information (dimensions)
+  dimension: report_version {
+    type: string
+    sql: 'v2.1.3' ;;
+  }
+  
+  dimension: report_author {
+    type: string
+    sql: 'Analytics Team' ;;
+  }
+  
+  dimension: report_description {
+    type: string
+    sql: 'Monthly sales performance analysis with year-over-year comparisons' ;;
+  }
+  
+  # Dynamic report information (also dimensions, not measures)
+  dimension: report_run_date {
+    type: date
+    sql: CURRENT_DATE() ;;
+  }
+  
+  dimension: report_run_by {
+    type: string
+    sql: '{{ _user_attributes['full_name'] }}' ;;
+  }
+}
+```
+
+## The Fundamental Rule
+
+**Dimensions answer:** "What is this attribute for each row?"
+- Company name for this record: "Acme Corporation"
+- Tax rate for this transaction: 8%
+- Report title: "Sales Dashboard"
+
+**Measures answer:** "What is the aggregated value across the selected rows?"
+- Total sales: $50,000 (sum across all selected orders)
+- Average order value: $125 (average across all selected orders)
+- Count of customers: 200 (count of distinct customers in selection)
+
+## Summary
+
+The `company_name` example was incorrect. Static values like company names, labels, constants, and metadata should almost always be **dimensions**, not measures. Measures are reserved for aggregations (sum, count, average, etc.) that change based on the data being queried.
+
+**Corrected version:**
+```lookml
+dimension: company_name {
+  type: string
+  sql: 'Acme Corporation' ;;
+}
+```
+
+This makes it available as a grouping field and properly represents what it is - a static attribute, not an aggregated calculation.
