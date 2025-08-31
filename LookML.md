@@ -1172,3 +1172,2964 @@ explore: financial_data {
 In summary: `always_filter` provides **guided flexibility** through the UI, while `sql_always_where` enforces **non-negotiable rules** at the database level.
 
 ---
+
+In LookML, dimensions represent attributes or characteristics of your data. Here are all the major types of dimensions with detailed examples:
+
+## Basic Dimension Types
+
+### String Dimensions
+For text data and categorical values
+```lookml
+dimension: customer_name {
+  type: string
+  sql: ${TABLE}.customer_name ;;
+}
+
+dimension: product_category {
+  type: string
+  sql: ${TABLE}.category ;;
+  suggestions: ["Electronics", "Clothing", "Books", "Home & Garden"]
+}
+
+dimension: order_status {
+  type: string
+  sql: ${TABLE}.status ;;
+  case: {
+    when: {
+      sql: ${TABLE}.status = 'shipped' ;;
+      label: "Shipped"
+    }
+    when: {
+      sql: ${TABLE}.status = 'pending' ;;
+      label: "Pending"
+    }
+    else: "Other"
+  }
+}
+```
+
+### Number Dimensions
+For numeric data that isn't aggregated
+```lookml
+dimension: customer_id {
+  type: number
+  primary_key: yes
+  sql: ${TABLE}.customer_id ;;
+}
+
+dimension: order_total {
+  type: number
+  sql: ${TABLE}.order_total ;;
+  value_format_name: usd
+}
+
+dimension: quantity {
+  type: number
+  sql: ${TABLE}.quantity ;;
+}
+```
+
+### Yes/No Dimensions
+For boolean logic and binary conditions
+```lookml
+dimension: is_premium_customer {
+  type: yesno
+  sql: ${customer_lifetime_value} > 1000 ;;
+}
+
+dimension: has_discount {
+  type: yesno
+  sql: ${TABLE}.discount_amount > 0 ;;
+}
+
+dimension: is_weekend_order {
+  type: yesno
+  sql: EXTRACT(DOW FROM ${TABLE}.order_date) IN (0, 6) ;;
+}
+```
+
+## Date and Time Dimensions
+
+### Date Dimensions
+```lookml
+dimension: order_date {
+  type: date
+  sql: ${TABLE}.order_date ;;
+}
+
+dimension: birth_date {
+  type: date
+  sql: ${TABLE}.date_of_birth ;;
+  convert_tz: no  # Don't apply timezone conversion
+}
+```
+
+### Timestamp Dimensions
+```lookml
+dimension: created_at {
+  type: timestamp
+  sql: ${TABLE}.created_at ;;
+}
+
+dimension: updated_timestamp {
+  type: timestamp
+  sql: ${TABLE}.last_updated ;;
+  convert_tz: yes  # Apply timezone conversion
+}
+```
+
+### Dimension Groups (Time-based)
+Creates multiple related time dimensions from a single field
+```lookml
+dimension_group: created {
+  type: time
+  timeframes: [raw, time, date, week, month, quarter, year, day_of_week, hour_of_day]
+  sql: ${TABLE}.created_at ;;
+}
+
+# This automatically creates:
+# - created_raw (original timestamp)
+# - created_time (formatted timestamp)
+# - created_date (date only)
+# - created_week (week starting date)
+# - created_month (month)
+# - created_quarter (quarter)
+# - created_year (year)
+# - created_day_of_week (Monday, Tuesday, etc.)
+# - created_hour_of_day (0-23)
+
+dimension_group: duration {
+  type: duration
+  intervals: [day, hour, minute]
+  sql_start: ${TABLE}.start_time ;;
+  sql_end: ${TABLE}.end_time ;;
+}
+# Creates duration_days, duration_hours, duration_minutes
+```
+
+## Advanced Dimension Types
+
+### Tier Dimensions
+For bucketing numeric values into ranges
+```lookml
+dimension: revenue_tier {
+  type: tier
+  tiers: [0, 100, 500, 1000, 5000]
+  style: integer
+  sql: ${TABLE}.order_total ;;
+}
+# Creates buckets: 0-99, 100-499, 500-999, 1000-4999, 5000+
+
+dimension: age_group {
+  type: tier
+  tiers: [18, 25, 35, 50, 65]
+  style: classic
+  sql: EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ${TABLE}.birth_date) ;;
+}
+# Creates ranges like "18 to 24", "25 to 34", etc.
+```
+
+### Bin Dimensions
+For creating equal-width buckets
+```lookml
+dimension: price_bin {
+  type: bin
+  bins: [0, 25, 50, 75, 100]
+  sql: ${TABLE}.price ;;
+}
+# Creates bins: [0-25), [25-50), [50-75), [75-100), [100+]
+```
+
+### Location Dimensions
+For geographic data
+```lookml
+dimension: location {
+  type: location
+  sql_latitude: ${TABLE}.latitude ;;
+  sql_longitude: ${TABLE}.longitude ;;
+}
+
+dimension: zip_code {
+  type: zipcode
+  sql: ${TABLE}.zip_code ;;
+}
+```
+
+## Calculated and Conditional Dimensions
+
+### Case Dimensions
+For conditional logic
+```lookml
+dimension: customer_segment {
+  type: string
+  case: {
+    when: {
+      sql: ${lifetime_value} >= 10000 ;;
+      label: "VIP"
+    }
+    when: {
+      sql: ${lifetime_value} >= 1000 ;;
+      label: "Premium"
+    }
+    when: {
+      sql: ${lifetime_value} >= 100 ;;
+      label: "Standard"
+    }
+    else: "Basic"
+  }
+}
+
+dimension: season {
+  type: string
+  case: {
+    when: {
+      sql: EXTRACT(MONTH FROM ${TABLE}.date) IN (12, 1, 2) ;;
+      label: "Winter"
+    }
+    when: {
+      sql: EXTRACT(MONTH FROM ${TABLE}.date) IN (3, 4, 5) ;;
+      label: "Spring"
+    }
+    when: {
+      sql: EXTRACT(MONTH FROM ${TABLE}.date) IN (6, 7, 8) ;;
+      label: "Summer"
+    }
+    else: "Fall"
+  }
+}
+```
+
+### Concatenated Dimensions
+Combining multiple fields
+```lookml
+dimension: full_name {
+  type: string
+  sql: CONCAT(${TABLE}.first_name, ' ', ${TABLE}.last_name) ;;
+}
+
+dimension: address {
+  type: string
+  sql: CONCAT(${TABLE}.street, ', ', ${TABLE}.city, ', ', ${TABLE}.state) ;;
+}
+```
+
+### Mathematical Dimensions
+Performing calculations
+```lookml
+dimension: profit_margin {
+  type: number
+  sql: (${TABLE}.revenue - ${TABLE}.cost) / ${TABLE}.revenue * 100 ;;
+  value_format: "0.00\%"
+}
+
+dimension: days_since_last_order {
+  type: number
+  sql: DATE_DIFF(CURRENT_DATE, ${TABLE}.last_order_date, DAY) ;;
+}
+
+dimension: age {
+  type: number
+  sql: DATE_DIFF(CURRENT_DATE, ${TABLE}.birth_date, YEAR) ;;
+}
+```
+
+## Special Dimension Properties
+
+### Hidden Dimensions
+For internal use only
+```lookml
+dimension: internal_id {
+  type: string
+  hidden: yes
+  sql: ${TABLE}.internal_reference ;;
+}
+```
+
+### Primary Key Dimensions
+For unique identifiers
+```lookml
+dimension: order_id {
+  type: number
+  primary_key: yes
+  sql: ${TABLE}.order_id ;;
+}
+```
+
+### Drill Fields
+For interactive exploration
+```lookml
+dimension: product_category {
+  type: string
+  sql: ${TABLE}.category ;;
+  drill_fields: [product_subcategory, product_name, brand]
+}
+```
+
+### Link Dimensions
+For creating clickable URLs
+```lookml
+dimension: customer_profile_link {
+  type: string
+  sql: ${TABLE}.customer_id ;;
+  link: {
+    label: "View Customer Profile"
+    url: "https://crm.company.com/customer/{{ value }}"
+  }
+}
+```
+
+### HTML Dimensions
+For rich formatting
+```lookml
+dimension: status_indicator {
+  type: string
+  sql: ${TABLE}.status ;;
+  html: 
+    {% if value == 'Active' %}
+      <span style="color: green;">● {{ value }}</span>
+    {% elsif value == 'Inactive' %}
+      <span style="color: red;">● {{ value }}</span>
+    {% else %}
+      <span style="color: orange;">● {{ value }}</span>
+    {% endif %} ;;
+}
+```
+
+## Dimension Usage Examples
+
+### Complete Customer Analysis View
+```lookml
+view: customers {
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: full_name {
+    type: string
+    sql: CONCAT(${TABLE}.first_name, ' ', ${TABLE}.last_name) ;;
+    link: {
+      label: "Customer Details"
+      url: "/dashboards/customer_detail?customer_id={{ customer_id._value }}"
+    }
+  }
+  
+  dimension_group: registered {
+    type: time
+    timeframes: [date, week, month, year]
+    sql: ${TABLE}.registration_date ;;
+  }
+  
+  dimension: customer_tier {
+    type: tier
+    tiers: [0, 500, 1000, 5000]
+    style: integer
+    sql: ${lifetime_value} ;;
+  }
+  
+  dimension: is_active {
+    type: yesno
+    sql: ${TABLE}.last_login_date >= CURRENT_DATE - 30 ;;
+  }
+  
+  dimension: geography {
+    type: string
+    map_layer_name: us_states
+    sql: ${TABLE}.state ;;
+  }
+}
+```
+
+These dimension types provide the building blocks for creating rich, interactive data models that allow users to slice, dice, and explore data from multiple perspectives while maintaining proper data types and formatting.
+
+---
+
+Here are comprehensive examples of using variables and field chaining in LookML to create reusable, DRY (Don't Repeat Yourself) code:
+
+## 1. Using Variables for Reusable SQL Snippets
+
+### Defining Variables in Models
+```lookml
+# ecommerce_model.model
+connection: "ecommerce_db"
+
+# Define reusable variables
+variable: current_period_filter {
+  default_value: "7"
+}
+
+variable: revenue_calculation {
+  default_value: "quantity * unit_price - COALESCE(discount_amount, 0)"
+}
+
+variable: customer_tier_logic {
+  default_value: """
+    CASE 
+      WHEN lifetime_value >= 10000 THEN 'VIP'
+      WHEN lifetime_value >= 1000 THEN 'Premium'
+      WHEN lifetime_value >= 100 THEN 'Standard'
+      ELSE 'Basic'
+    END
+  """
+}
+```
+
+### Using Variables in Views
+```lookml
+view: orders {
+  sql_table_name: public.orders ;;
+  
+  dimension: order_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  # Using variable for consistent revenue calculation
+  dimension: net_revenue {
+    type: number
+    sql: @{revenue_calculation} ;;
+    value_format_name: usd
+  }
+  
+  # Using variable in filters and measures
+  measure: current_period_revenue {
+    type: sum
+    sql: @{revenue_calculation} ;;
+    filters: [created_date: "@{current_period_filter} days"]
+    value_format_name: usd
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: @{revenue_calculation} ;;
+    value_format_name: usd
+  }
+}
+
+view: customers {
+  sql_table_name: public.customers ;;
+  
+  # Using the same customer tier logic across multiple views
+  dimension: customer_tier {
+    type: string
+    sql: @{customer_tier_logic} ;;
+  }
+  
+  # Chain this dimension in other calculations
+  dimension: is_high_value {
+    type: yesno
+    sql: @{customer_tier_logic} IN ('VIP', 'Premium') ;;
+  }
+}
+```
+
+## 2. Field Chaining and References
+
+### Basic Field Chaining
+```lookml
+view: sales_analysis {
+  sql_table_name: public.orders ;;
+  
+  # Base dimensions
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.order_total ;;
+  }
+  
+  dimension: quantity {
+    type: number
+    sql: ${TABLE}.quantity ;;
+  }
+  
+  # Chain fields together for calculations
+  dimension: unit_price {
+    type: number
+    sql: ${order_total} / NULLIF(${quantity}, 0) ;;
+    value_format_name: usd
+  }
+  
+  dimension: is_bulk_order {
+    type: yesno
+    sql: ${quantity} >= 10 ;;
+  }
+  
+  dimension: order_size_category {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${quantity} >= 50 THEN 'Bulk'
+        WHEN ${quantity} >= 10 THEN 'Large'
+        WHEN ${quantity} >= 5 THEN 'Medium'
+        ELSE 'Small'
+      END ;;
+  }
+  
+  # Chain the category in measures
+  measure: bulk_order_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [is_bulk_order: "yes"]
+  }
+  
+  measure: average_unit_price_by_category {
+    type: average
+    sql: ${unit_price} ;;
+    drill_fields: [order_size_category, quantity, unit_price]
+  }
+}
+```
+
+### Advanced Field Chaining with Date Logic
+```lookml
+view: time_analysis {
+  dimension_group: created {
+    type: time
+    timeframes: [raw, date, week, month, quarter, year, day_of_week]
+    sql: ${TABLE}.created_at ;;
+  }
+  
+  # Chain date dimensions for complex logic
+  dimension: is_weekend {
+    type: yesno
+    sql: ${created_day_of_week} IN ('Saturday', 'Sunday') ;;
+  }
+  
+  dimension: is_current_month {
+    type: yesno
+    sql: ${created_month} = EXTRACT(MONTH FROM CURRENT_DATE) 
+         AND ${created_year} = EXTRACT(YEAR FROM CURRENT_DATE) ;;
+  }
+  
+  dimension: days_since_created {
+    type: number
+    sql: DATE_DIFF(CURRENT_DATE, ${created_date}, DAY) ;;
+  }
+  
+  # Chain multiple time-based dimensions
+  dimension: recency_category {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${days_since_created} <= 7 THEN 'This Week'
+        WHEN ${days_since_created} <= 30 THEN 'This Month'
+        WHEN ${days_since_created} <= 90 THEN 'This Quarter'
+        ELSE 'Older'
+      END ;;
+  }
+  
+  # Use chained fields in measures
+  measure: weekend_orders {
+    type: count
+    filters: [is_weekend: "yes"]
+  }
+  
+  measure: recent_orders_pct {
+    type: number
+    sql: 
+      100.0 * SUM(CASE WHEN ${days_since_created} <= 30 THEN 1 ELSE 0 END) / 
+      COUNT(*) ;;
+    value_format: "0.0\%"
+  }
+}
+```
+
+## 3. Cross-View Field Chaining
+
+### Customer Lifetime Value Chain
+```lookml
+view: customers {
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: registration_date {
+    type: date
+    sql: ${TABLE}.created_at ;;
+  }
+  
+  dimension: customer_age_days {
+    type: number
+    sql: DATE_DIFF(CURRENT_DATE, ${registration_date}, DAY) ;;
+  }
+  
+  # This will be referenced from orders view
+  dimension: customer_tier {
+    type: string
+    sql: @{customer_tier_logic} ;;
+  }
+}
+
+view: orders {
+  dimension: customer_id {
+    type: number
+    sql: ${TABLE}.customer_id ;;
+  }
+  
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.total_amount ;;
+  }
+  
+  # Chain customer fields in orders context
+  measure: revenue_by_tier {
+    type: sum
+    sql: ${order_total} ;;
+    drill_fields: [customers.customer_tier, customers.customer_id, order_total]
+  }
+  
+  measure: avg_order_value_new_customers {
+    type: average
+    sql: ${order_total} ;;
+    filters: [customers.customer_age_days: "<=30"]
+  }
+}
+```
+
+## 4. Parameterized Reusable Logic
+
+### Dynamic Time Period Analysis
+```lookml
+view: flexible_analytics {
+  parameter: time_granularity {
+    type: unquoted
+    allowed_value: {
+      label: "Day"
+      value: "day"
+    }
+    allowed_value: {
+      label: "Week"
+      value: "week"
+    }
+    allowed_value: {
+      label: "Month"
+      value: "month"
+    }
+    default_value: "day"
+  }
+  
+  parameter: comparison_period {
+    type: number
+    default_value: "30"
+  }
+  
+  # Chain parameters with dimensions
+  dimension: dynamic_time_dimension {
+    type: string
+    sql: 
+      {% if time_granularity._parameter_value == 'day' %}
+        ${created_date}
+      {% elsif time_granularity._parameter_value == 'week' %}
+        ${created_week}
+      {% else %}
+        ${created_month}
+      {% endif %} ;;
+  }
+  
+  dimension: is_comparison_period {
+    type: yesno
+    sql: 
+      ${created_date} >= CURRENT_DATE - {% parameter comparison_period %} ;;
+  }
+  
+  # Chain these in measures
+  measure: flexible_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [is_comparison_period: "yes"]
+  }
+}
+```
+
+## 5. Complex Chaining Example: E-commerce Analytics
+
+### Comprehensive Product Performance View
+```lookml
+view: product_performance {
+  # Base product dimensions
+  dimension: product_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.product_id ;;
+  }
+  
+  dimension: category {
+    type: string
+    sql: ${TABLE}.category ;;
+  }
+  
+  dimension: price {
+    type: number
+    sql: ${TABLE}.price ;;
+  }
+  
+  # Chain pricing tiers
+  dimension: price_tier {
+    type: tier
+    tiers: [0, 25, 50, 100, 200]
+    style: integer
+    sql: ${price} ;;
+  }
+  
+  dimension: is_premium_product {
+    type: yesno
+    sql: ${price_tier} = "200 or Above" ;;
+  }
+  
+  # Sales performance dimensions (chained from other fields)
+  dimension: total_quantity_sold {
+    type: number
+    sql: 
+      (SELECT SUM(quantity) 
+       FROM order_items oi 
+       WHERE oi.product_id = ${product_id}) ;;
+  }
+  
+  dimension: total_revenue {
+    type: number
+    sql: 
+      (SELECT SUM(quantity * unit_price) 
+       FROM order_items oi 
+       WHERE oi.product_id = ${product_id}) ;;
+  }
+  
+  # Chain multiple fields for performance categories
+  dimension: performance_score {
+    type: number
+    sql: 
+      CASE 
+        WHEN ${total_quantity_sold} = 0 THEN 0
+        ELSE ${total_revenue} / ${total_quantity_sold} 
+      END ;;
+  }
+  
+  dimension: performance_category {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${total_quantity_sold} = 0 THEN 'No Sales'
+        WHEN ${performance_score} >= 100 AND ${total_quantity_sold} >= 50 THEN 'Star Performer'
+        WHEN ${performance_score} >= 75 OR ${total_quantity_sold} >= 100 THEN 'Good Performer'
+        WHEN ${performance_score} >= 50 OR ${total_quantity_sold} >= 25 THEN 'Average'
+        ELSE 'Poor Performer'
+      END ;;
+  }
+  
+  # Measures that chain all the logic together
+  measure: products_by_performance {
+    type: count
+    drill_fields: [category, performance_category, price_tier, total_revenue]
+  }
+  
+  measure: revenue_from_star_products {
+    type: sum
+    sql: ${total_revenue} ;;
+    filters: [performance_category: "Star Performer"]
+  }
+  
+  measure: avg_price_by_performance {
+    type: average
+    sql: ${price} ;;
+    drill_fields: [performance_category, category, price]
+  }
+}
+```
+
+## 6. Variable-Based Join Logic
+
+### Reusable Join Patterns
+```lookml
+# In model file
+variable: standard_date_join {
+  default_value: """
+    ${orders.created_date} = ${daily_summary.summary_date}
+  """
+}
+
+variable: customer_join_condition {
+  default_value: """
+    ${orders.customer_id} = ${customers.id} 
+    AND ${customers.status} = 'active'
+  """
+}
+
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: @{customer_join_condition} ;;
+  }
+  
+  join: daily_summary {
+    type: left_outer
+    sql_on: @{standard_date_join} ;;
+  }
+}
+
+explore: customer_analysis {
+  join: customers {
+    type: inner
+    sql_on: @{customer_join_condition} ;;
+  }
+}
+```
+
+These patterns demonstrate how variables and field chaining create maintainable, reusable LookML code where business logic is defined once and referenced throughout your model, making updates and consistency much easier to manage.
+
+----
+
+In LookML, there are three fundamental types of measures based on how they handle data aggregation. Here's a detailed explanation with examples:
+
+## 1. Aggregate Measures
+
+Aggregate measures perform SQL aggregation functions on raw data. They are the most common type and process data at the database level before returning results to Looker.
+
+### Basic Aggregate Functions
+
+**Count Measures**
+```lookml
+measure: total_orders {
+  type: count
+  # Counts all rows in the result set
+  drill_fields: [order_id, customer_name, order_date]
+}
+
+measure: unique_customers {
+  type: count_distinct
+  sql: ${customer_id} ;;
+  # Counts distinct customer IDs
+}
+```
+
+**Sum Measures**
+```lookml
+measure: total_revenue {
+  type: sum
+  sql: ${order_total} ;;
+  value_format_name: usd
+}
+
+measure: total_quantity_sold {
+  type: sum
+  sql: ${quantity} ;;
+  # Sums up all quantity values
+}
+```
+
+**Average Measures**
+```lookml
+measure: average_order_value {
+  type: average
+  sql: ${order_total} ;;
+  value_format_name: usd_0
+}
+
+measure: avg_customer_age {
+  type: average
+  sql: ${customer_age} ;;
+  value_format: "0.0"
+}
+```
+
+**Min/Max Measures**
+```lookml
+measure: first_order_date {
+  type: min
+  sql: ${order_date} ;;
+}
+
+measure: highest_order_value {
+  type: max
+  sql: ${order_total} ;;
+  value_format_name: usd
+}
+```
+
+**Advanced Aggregate Measures**
+```lookml
+measure: median_order_value {
+  type: median
+  sql: ${order_total} ;;
+  value_format_name: usd
+}
+
+measure: revenue_percentile_90 {
+  type: percentile
+  percentile: 90
+  sql: ${order_total} ;;
+}
+
+measure: standard_deviation_order_size {
+  type: stddev_pop
+  sql: ${order_total} ;;
+}
+```
+
+## 2. Non-Aggregate Measures
+
+Non-aggregate measures don't perform SQL aggregation. They either return single values or perform calculations on already-aggregated data.
+
+### Table Calculations (Non-SQL)
+```lookml
+measure: conversion_rate {
+  type: number
+  sql: 1.0 * ${orders_count} / NULLIF(${website_visits}, 0) ;;
+  value_format_name: percent_2
+  # This calculates a rate from two aggregate measures
+}
+
+measure: revenue_per_customer {
+  type: number
+  sql: 1.0 * ${total_revenue} / NULLIF(${customer_count}, 0) ;;
+  value_format_name: usd
+  # Division of two aggregated values
+}
+```
+
+### List and String Aggregations
+```lookml
+measure: customer_list {
+  type: list
+  list_field: customer_name
+  # Returns a comma-separated list of customer names
+}
+
+measure: top_products {
+  type: string
+  sql: STRING_AGG(${product_name}, ', ') ;;
+  # Concatenates product names (database-specific function)
+}
+```
+
+### Single Value Measures
+```lookml
+measure: current_date_display {
+  type: string
+  sql: CURRENT_DATE() ;;
+  # Returns current date, no aggregation needed
+}
+
+measure: company_name {
+  type: string
+  sql: 'Acme Corporation' ;;
+  # Static value
+}
+```
+
+### Ratio Measures (Non-aggregate calculations)
+```lookml
+measure: profit_margin_percent {
+  type: number
+  sql: 
+    CASE 
+      WHEN ${total_revenue} > 0 
+      THEN 100.0 * (${total_revenue} - ${total_cost}) / ${total_revenue}
+      ELSE 0 
+    END ;;
+  value_format: "0.00\%"
+  # Calculates percentage from aggregate measures
+}
+```
+
+## 3. Post-SQL Measures (Table Calculations)
+
+Post-SQL measures are calculated after the SQL query returns data to Looker. They operate on the aggregated results and are useful for complex calculations that can't be done efficiently in SQL.
+
+### Running Totals and Window Functions
+```lookml
+measure: running_total_revenue {
+  type: running_total
+  sql: ${total_revenue} ;;
+  # Calculates cumulative sum across sorted results
+}
+
+measure: revenue_rank {
+  type: rank
+  sql: ${total_revenue} ;;
+  # Ranks results by revenue (1 = highest)
+}
+
+measure: revenue_percent_of_total {
+  type: percent_of_total
+  sql: ${total_revenue} ;;
+  # Each row's percentage of the total
+}
+```
+
+### Period-over-Period Calculations
+```lookml
+measure: revenue_previous_period {
+  type: number
+  sql: ${total_revenue} ;;
+  # This would be used with table calculations for period comparisons
+}
+
+# In explore, you'd add table calculations like:
+# table_calculation: revenue_growth {
+#   expression: (${total_revenue} - offset(${total_revenue}, 1)) / offset(${total_revenue}, 1) ;;
+#   value_format_name: percent_1
+# }
+```
+
+## Complex Examples Combining All Types
+
+### E-commerce Performance Dashboard
+```lookml
+view: ecommerce_metrics {
+  
+  # AGGREGATE MEASURES
+  measure: total_orders {
+    type: count
+    filters: [order_status: "-cancelled"]
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    value_format_name: usd
+  }
+  
+  measure: unique_customers {
+    type: count_distinct
+    sql: ${customer_id} ;;
+  }
+  
+  measure: avg_order_value {
+    type: average
+    sql: ${order_total} ;;
+    value_format_name: usd_0
+  }
+  
+  # NON-AGGREGATE MEASURES
+  measure: revenue_per_customer {
+    type: number
+    sql: 1.0 * ${total_revenue} / NULLIF(${unique_customers}, 0) ;;
+    value_format_name: usd
+  }
+  
+  measure: order_frequency {
+    type: number
+    sql: 1.0 * ${total_orders} / NULLIF(${unique_customers}, 0) ;;
+    value_format: "0.00"
+  }
+  
+  measure: top_customers_list {
+    type: list
+    list_field: customer_name
+    order_by_field: total_revenue
+    # Shows list of customers ordered by revenue
+  }
+  
+  # POST-SQL MEASURES (used in explores)
+  measure: revenue_running_total {
+    type: running_total
+    sql: ${total_revenue} ;;
+  }
+  
+  measure: customer_rank_by_revenue {
+    type: rank
+    sql: ${revenue_per_customer} ;;
+  }
+  
+  measure: revenue_percentile {
+    type: percent_of_total
+    sql: ${total_revenue} ;;
+  }
+}
+```
+
+### Financial Analysis Example
+```lookml
+view: financial_metrics {
+  
+  # AGGREGATE - Raw data aggregation
+  measure: gross_revenue {
+    type: sum
+    sql: ${TABLE}.revenue ;;
+    value_format_name: usd
+  }
+  
+  measure: total_costs {
+    type: sum
+    sql: ${TABLE}.operating_costs + ${TABLE}.marketing_costs ;;
+    value_format_name: usd
+  }
+  
+  measure: transaction_count {
+    type: count
+    filters: [transaction_type: "sale"]
+  }
+  
+  # NON-AGGREGATE - Calculations on aggregated data
+  measure: net_profit {
+    type: number
+    sql: ${gross_revenue} - ${total_costs} ;;
+    value_format_name: usd
+  }
+  
+  measure: profit_margin {
+    type: number
+    sql: 
+      CASE 
+        WHEN ${gross_revenue} > 0 
+        THEN 100.0 * ${net_profit} / ${gross_revenue}
+        ELSE 0 
+      END ;;
+    value_format: "0.00\%"
+  }
+  
+  measure: cost_per_transaction {
+    type: number
+    sql: 1.0 * ${total_costs} / NULLIF(${transaction_count}, 0) ;;
+    value_format_name: usd
+  }
+  
+  # POST-SQL - Applied after query execution
+  measure: profit_running_total {
+    type: running_total
+    sql: ${net_profit} ;;
+  }
+  
+  measure: monthly_profit_rank {
+    type: rank
+    sql: ${net_profit} ;;
+  }
+}
+```
+
+## Key Differences Summary
+
+| Aspect | Aggregate | Non-Aggregate | Post-SQL |
+|--------|-----------|---------------|----------|
+| **Processing** | Database level | Database level | Looker application level |
+| **Data Input** | Raw rows | Already aggregated data | Query results |
+| **Performance** | Fast (database optimized) | Fast | Slower (client-side) |
+| **SQL Generation** | Uses GROUP BY | Simple calculations | Applied after main query |
+| **Use Cases** | Summing, counting, averaging raw data | Ratios, rates between aggregates | Running totals, rankings, percentages of total |
+| **Limitations** | None | Can't aggregate raw data | Limited by result set size |
+
+Understanding these three types helps you choose the right measure type for optimal performance and accurate calculations in your LookML models.
+
+---
+
+In LookML, **Group Labels** and **View Labels** are organizational tools that help create cleaner, more user-friendly interfaces by categorizing and customizing how fields and views appear to end users.
+
+## Group Labels
+
+Group labels organize related fields within a view into logical categories, making it easier for users to find and understand fields in the field picker.
+
+### Basic Group Label Syntax
+```lookml
+view: customers {
+  # Personal Information Group
+  dimension: first_name {
+    type: string
+    sql: ${TABLE}.first_name ;;
+    group_label: "Personal Information"
+  }
+  
+  dimension: last_name {
+    type: string
+    sql: ${TABLE}.last_name ;;
+    group_label: "Personal Information"
+  }
+  
+  dimension: email {
+    type: string
+    sql: ${TABLE}.email ;;
+    group_label: "Contact Details"
+  }
+  
+  dimension: phone {
+    type: string
+    sql: ${TABLE}.phone ;;
+    group_label: "Contact Details"
+  }
+  
+  # Financial Metrics Group
+  dimension: lifetime_value {
+    type: number
+    sql: ${TABLE}.lifetime_value ;;
+    group_label: "Financial Metrics"
+    value_format_name: usd
+  }
+  
+  measure: total_spent {
+    type: sum
+    sql: ${TABLE}.total_spent ;;
+    group_label: "Financial Metrics"
+    value_format_name: usd
+  }
+}
+```
+
+### E-commerce Example with Multiple Group Labels
+```lookml
+view: orders {
+  # ORDER DETAILS GROUP
+  dimension: order_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+    group_label: "Order Details"
+  }
+  
+  dimension: order_status {
+    type: string
+    sql: ${TABLE}.status ;;
+    group_label: "Order Details"
+  }
+  
+  dimension: order_source {
+    type: string
+    sql: ${TABLE}.source ;;
+    group_label: "Order Details"
+  }
+  
+  # TIMING GROUP
+  dimension_group: created {
+    type: time
+    timeframes: [raw, date, week, month, quarter, year]
+    sql: ${TABLE}.created_at ;;
+    group_label: "Timing"
+  }
+  
+  dimension_group: shipped {
+    type: time
+    timeframes: [date, week, month]
+    sql: ${TABLE}.shipped_at ;;
+    group_label: "Timing"
+  }
+  
+  # FINANCIAL GROUP
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.total_amount ;;
+    group_label: "Financial"
+    value_format_name: usd
+  }
+  
+  dimension: discount_amount {
+    type: number
+    sql: ${TABLE}.discount ;;
+    group_label: "Financial"
+    value_format_name: usd
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    group_label: "Financial"
+    value_format_name: usd
+  }
+  
+  measure: average_order_value {
+    type: average
+    sql: ${order_total} ;;
+    group_label: "Financial"
+    value_format_name: usd
+  }
+  
+  # GEOGRAPHIC GROUP
+  dimension: shipping_city {
+    type: string
+    sql: ${TABLE}.shipping_city ;;
+    group_label: "Geographic"
+  }
+  
+  dimension: shipping_state {
+    type: string
+    sql: ${TABLE}.shipping_state ;;
+    group_label: "Geographic"
+  }
+  
+  dimension: shipping_country {
+    type: string
+    sql: ${TABLE}.shipping_country ;;
+    group_label: "Geographic"
+  }
+}
+```
+
+## View Labels
+
+View labels customize how view names appear to end users in the field picker and throughout the Looker interface, making them more business-friendly.
+
+### Basic View Label Syntax
+```lookml
+view: dim_customers {
+  # Technical table name is dim_customers, but users see "Customers"
+  view_label: "Customers"
+  sql_table_name: warehouse.dim_customers ;;
+  
+  dimension: customer_id {
+    type: number
+    sql: ${TABLE}.id ;;
+  }
+}
+
+view: fact_orders {
+  view_label: "Orders"  # Users see "Orders" instead of "fact_orders"
+  sql_table_name: warehouse.fact_orders ;;
+  
+  dimension: order_id {
+    type: number
+    sql: ${TABLE}.id ;;
+  }
+}
+```
+
+### Complex Example with View Labels in Explores
+```lookml
+# Model file with explores
+explore: sales_analysis {
+  view_name: fact_orders
+  view_label: "Sales Data"  # Override the view's own label for this explore
+  
+  join: dim_customers {
+    view_label: "Customer Information"  # Override default "Customers" label
+    type: left_outer
+    sql_on: ${fact_orders.customer_id} = ${dim_customers.customer_id} ;;
+  }
+  
+  join: dim_products {
+    view_label: "Product Catalog"
+    type: left_outer
+    sql_on: ${fact_orders.product_id} = ${dim_products.product_id} ;;
+  }
+  
+  join: geography_lookup {
+    view_label: "Geographic Data"  # Much cleaner than "geography_lookup"
+    type: left_outer
+    sql_on: ${dim_customers.zip_code} = ${geography_lookup.zip} ;;
+  }
+}
+```
+
+## Advanced Combinations: Group Labels + View Labels
+
+### Comprehensive Analytics Dashboard Example
+```lookml
+view: customer_analytics {
+  view_label: "Customer Analytics"
+  sql_table_name: analytics.customer_summary ;;
+  
+  # IDENTIFICATION GROUP
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.customer_id ;;
+    group_label: "Identification"
+  }
+  
+  dimension: customer_name {
+    type: string
+    sql: ${TABLE}.full_name ;;
+    group_label: "Identification"
+  }
+  
+  dimension: customer_segment {
+    type: string
+    sql: ${TABLE}.segment ;;
+    group_label: "Identification"
+  }
+  
+  # DEMOGRAPHICS GROUP
+  dimension: age_group {
+    type: string
+    sql: ${TABLE}.age_bracket ;;
+    group_label: "Demographics"
+  }
+  
+  dimension: gender {
+    type: string
+    sql: ${TABLE}.gender ;;
+    group_label: "Demographics"
+  }
+  
+  dimension: income_level {
+    type: string
+    sql: ${TABLE}.income_tier ;;
+    group_label: "Demographics"
+  }
+  
+  # BEHAVIORAL METRICS GROUP
+  dimension: total_orders {
+    type: number
+    sql: ${TABLE}.order_count ;;
+    group_label: "Behavioral Metrics"
+  }
+  
+  dimension: days_since_last_order {
+    type: number
+    sql: ${TABLE}.days_since_last_purchase ;;
+    group_label: "Behavioral Metrics"
+  }
+  
+  measure: avg_time_between_orders {
+    type: average
+    sql: ${TABLE}.avg_days_between_orders ;;
+    group_label: "Behavioral Metrics"
+    value_format: "0.0"
+  }
+  
+  # FINANCIAL PERFORMANCE GROUP
+  dimension: lifetime_value {
+    type: number
+    sql: ${TABLE}.clv ;;
+    group_label: "Financial Performance"
+    value_format_name: usd
+  }
+  
+  measure: total_customer_value {
+    type: sum
+    sql: ${lifetime_value} ;;
+    group_label: "Financial Performance"
+    value_format_name: usd
+  }
+  
+  measure: average_customer_value {
+    type: average
+    sql: ${lifetime_value} ;;
+    group_label: "Financial Performance"
+    value_format_name: usd
+  }
+  
+  # ENGAGEMENT METRICS GROUP
+  dimension: email_opens_last_month {
+    type: number
+    sql: ${TABLE}.recent_email_opens ;;
+    group_label: "Engagement Metrics"
+  }
+  
+  dimension: website_visits_last_month {
+    type: number
+    sql: ${TABLE}.recent_web_visits ;;
+    group_label: "Engagement Metrics"
+  }
+  
+  measure: engagement_score {
+    type: average
+    sql: ${TABLE}.engagement_score ;;
+    group_label: "Engagement Metrics"
+    value_format: "0.00"
+  }
+}
+```
+
+### Multi-View Explore with Organized Labels
+```lookml
+explore: comprehensive_sales {
+  view_name: orders
+  view_label: "Order Transactions"
+  
+  join: customers {
+    view_label: "Customer Profiles"
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  join: products {
+    view_label: "Product Information"
+    type: left_outer
+    sql_on: ${orders.product_id} = ${products.id} ;;
+  }
+  
+  join: marketing_campaigns {
+    view_label: "Marketing Attribution"
+    type: left_outer
+    sql_on: ${orders.campaign_id} = ${marketing_campaigns.id} ;;
+  }
+}
+
+# Each view has its own group labels
+view: products {
+  view_label: "Product Information"  # This can be overridden in explore
+  
+  dimension: product_name {
+    type: string
+    sql: ${TABLE}.name ;;
+    group_label: "Basic Info"
+  }
+  
+  dimension: category {
+    type: string
+    sql: ${TABLE}.category ;;
+    group_label: "Classification"
+  }
+  
+  dimension: subcategory {
+    type: string
+    sql: ${TABLE}.subcategory ;;
+    group_label: "Classification"
+  }
+  
+  dimension: price {
+    type: number
+    sql: ${TABLE}.price ;;
+    group_label: "Pricing"
+    value_format_name: usd
+  }
+  
+  dimension: cost {
+    type: number
+    sql: ${TABLE}.cost ;;
+    group_label: "Pricing"
+    value_format_name: usd
+  }
+}
+```
+
+## User Interface Impact
+
+When properly implemented, group labels and view labels create a much cleaner interface:
+
+**Without Labels:**
+- Fields appear as: `dim_customers.cust_first_nm`, `fact_orders.ord_tot_amt`
+- All fields in flat list
+- Technical table names visible
+
+**With Labels:**
+- Views appear as: "Customer Profiles", "Order Transactions"
+- Fields organized under: "Personal Information", "Financial Metrics", "Geographic Data"
+- Business-friendly names throughout
+
+## Best Practices
+
+### Group Label Organization
+```lookml
+# Use consistent group naming across views
+group_label: "Basic Information"     # Not "Basic Info" elsewhere
+group_label: "Financial Metrics"    # Not "Finance" elsewhere
+group_label: "Geographic Data"      # Not "Geography" elsewhere
+
+# Keep group names short but descriptive
+group_label: "Timing"               # Good
+group_label: "Date and Time Information"  # Too long
+
+# Use logical groupings
+group_label: "Contact Details"      # email, phone, address
+group_label: "Demographics"         # age, gender, income
+group_label: "Behavioral Metrics"   # orders, visits, engagement
+```
+
+### View Label Strategy
+```lookml
+# Make view labels business-friendly
+view_label: "Customers"             # Not "dim_customers"
+view_label: "Sales Transactions"    # Not "fact_sales_trans"
+view_label: "Product Catalog"       # Not "prod_dim_tbl"
+
+# Be consistent across explores
+view_label: "Customer Data"         # Use same label everywhere
+view_label: "Order Information"     # Consistent naming pattern
+```
+
+These organizational tools significantly improve the user experience by making complex data models more intuitive and business-user friendly.
+
+---
+
+In LookML, join parameters control how views are connected and how the resulting data is queried. Here are the most commonly used join parameters with detailed examples:
+
+## 1. Basic Join Parameters
+
+### `type` - Specifies the SQL join type
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer  # Most common - keeps all orders even without customer data
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  join: order_items {
+    type: inner  # Only orders that have items
+    sql_on: ${orders.id} = ${order_items.order_id} ;;
+  }
+  
+  join: promotions {
+    type: right_outer  # Less common - keeps all promotions
+    sql_on: ${orders.promo_code} = ${promotions.code} ;;
+  }
+  
+  join: inventory {
+    type: full_outer  # Rare - keeps all records from both sides
+    sql_on: ${order_items.product_id} = ${inventory.product_id} ;;
+  }
+  
+  join: product_reviews {
+    type: cross  # Cartesian product - rarely used
+    sql_on: ${orders.product_id} = ${product_reviews.product_id} ;;
+  }
+}
+```
+
+### `sql_on` - Defines the join condition
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  # Complex join condition
+  join: customer_addresses {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customer_addresses.customer_id} 
+            AND ${customer_addresses.address_type} = 'shipping'
+            AND ${customer_addresses.is_active} = true ;;
+  }
+  
+  # Date-based join
+  join: daily_exchange_rates {
+    type: left_outer
+    sql_on: DATE(${orders.created_date}) = ${daily_exchange_rates.rate_date}
+            AND ${orders.currency} = ${daily_exchange_rates.currency_code} ;;
+  }
+}
+```
+
+## 2. Relationship Parameters
+
+### `relationship` - Defines the data relationship type
+```lookml
+explore: customers {
+  join: orders {
+    type: left_outer
+    relationship: one_to_many  # One customer can have many orders
+    sql_on: ${customers.id} = ${orders.customer_id} ;;
+  }
+  
+  join: customer_profile {
+    type: left_outer
+    relationship: one_to_one  # Each customer has one profile
+    sql_on: ${customers.id} = ${customer_profile.customer_id} ;;
+  }
+  
+  join: product_categories {
+    type: left_outer
+    relationship: many_to_one  # Many products belong to one category
+    sql_on: ${orders.product_id} = ${product_categories.product_id} ;;
+  }
+  
+  join: order_tags {
+    type: left_outer
+    relationship: many_to_many  # Orders can have multiple tags, tags can apply to multiple orders
+    sql_on: ${orders.id} = ${order_tags.order_id} ;;
+  }
+}
+```
+
+## 3. Field Selection Parameters
+
+### `fields` - Controls which fields are available from the joined view
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+    fields: [customers.name, customers.email, customers.customer_tier, customers.total_orders]
+    # Only these specific fields are available, not all customer fields
+  }
+  
+  join: products {
+    type: left_outer
+    sql_on: ${orders.product_id} = ${products.id} ;;
+    fields: [products.basic_info*, products.pricing*]
+    # Include all fields from specific field groups
+  }
+  
+  join: internal_metrics {
+    type: left_outer
+    sql_on: ${orders.id} = ${internal_metrics.order_id} ;;
+    fields: []  # No fields exposed to users (join used for filtering only)
+  }
+}
+```
+
+## 4. Performance and Behavior Parameters
+
+### `sql_always_where` - Applies additional WHERE conditions to the joined view
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+    sql_always_where: ${customers.status} = 'active' 
+                     AND ${customers.deleted_at} IS NULL ;;
+    # Only join with active, non-deleted customers
+  }
+  
+  join: order_items {
+    type: left_outer
+    sql_on: ${orders.id} = ${order_items.order_id} ;;
+    sql_always_where: ${order_items.quantity} > 0 
+                     AND ${order_items.unit_price} > 0 ;;
+    # Filter out invalid order items
+  }
+}
+```
+
+### `sql_where` - Dynamic WHERE conditions based on query context
+```lookml
+explore: orders {
+  join: seasonal_promotions {
+    type: left_outer
+    sql_on: ${orders.promo_code} = ${seasonal_promotions.code} ;;
+    sql_where: 
+      {% if orders.created_date._in_query %}
+        ${seasonal_promotions.valid_from} <= ${orders.created_date} 
+        AND ${seasonal_promotions.valid_to} >= ${orders.created_date}
+      {% else %}
+        ${seasonal_promotions.is_currently_active} = true
+      {% endif %} ;;
+  }
+}
+```
+
+## 5. Scope and Access Parameters
+
+### `view_label` - Overrides the view's label in this specific join context
+```lookml
+explore: customer_analysis {
+  join: orders {
+    type: left_outer
+    view_label: "Purchase History"  # Instead of "Orders"
+    sql_on: ${customers.id} = ${orders.customer_id} ;;
+  }
+  
+  join: orders as recent_orders {
+    type: left_outer
+    view_label: "Recent Purchases"
+    sql_on: ${customers.id} = ${recent_orders.customer_id} ;;
+    sql_always_where: ${recent_orders.created_date} >= CURRENT_DATE - 30 ;;
+  }
+}
+```
+
+### `required_access_grants` - Controls access to joined data
+```lookml
+# Define access grant in model
+access_grant: pii_access {
+  allowed_values: ["admin", "manager"]
+  user_attribute: security_level
+}
+
+explore: orders {
+  join: customer_pii {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customer_pii.customer_id} ;;
+    required_access_grants: [pii_access]
+    # Only users with proper access can see this joined data
+  }
+}
+```
+
+## 6. Advanced Join Scenarios
+
+### Multiple Joins with Dependencies
+```lookml
+explore: comprehensive_sales {
+  # Primary customer join
+  join: customers {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  # Customer address depends on customer join
+  join: customer_addresses {
+    type: left_outer
+    relationship: one_to_one
+    sql_on: ${customers.id} = ${customer_addresses.customer_id} ;;
+    sql_always_where: ${customer_addresses.address_type} = 'primary' ;;
+  }
+  
+  # Geographic data depends on address
+  join: zip_code_data {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${customer_addresses.zip_code} = ${zip_code_data.zip} ;;
+    fields: [zip_code_data.city, zip_code_data.state, zip_code_data.region]
+  }
+  
+  # Product information
+  join: products {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${orders.product_id} = ${products.id} ;;
+  }
+  
+  # Product category depends on product
+  join: categories {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${products.category_id} = ${categories.id} ;;
+    view_label: "Product Categories"
+  }
+}
+```
+
+### Self-Joins with Aliases
+```lookml
+explore: employee_hierarchy {
+  view_name: employees
+  
+  # Join employees to their managers
+  join: managers {
+    from: employees  # Same view, different alias
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${employees.manager_id} = ${managers.employee_id} ;;
+    view_label: "Manager Information"
+    fields: [managers.name, managers.title, managers.department]
+  }
+  
+  # Join to department head (another level up)
+  join: department_heads {
+    from: employees
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${managers.manager_id} = ${department_heads.employee_id} ;;
+    view_label: "Department Leadership"
+  }
+}
+```
+
+### Conditional Joins
+```lookml
+explore: dynamic_product_analysis {
+  join: product_reviews {
+    type: left_outer
+    sql_on: ${products.id} = ${product_reviews.product_id} ;;
+    sql_where: 
+      {% if _user_attributes['show_reviews'] == 'yes' %}
+        ${product_reviews.is_verified} = true
+      {% else %}
+        1 = 0  -- Effectively disable the join
+      {% endif %} ;;
+  }
+  
+  join: competitor_pricing {
+    type: left_outer
+    sql_on: ${products.sku} = ${competitor_pricing.sku} ;;
+    required_access_grants: [pricing_access]
+    sql_always_where: ${competitor_pricing.data_date} >= CURRENT_DATE - 7 ;;
+  }
+}
+```
+
+## 7. Performance Optimization Examples
+
+### Indexed Join Optimization
+```lookml
+explore: high_volume_orders {
+  join: customers {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+    # Ensure customer_id is indexed in both tables
+  }
+  
+  join: order_summary {
+    type: left_outer
+    relationship: one_to_one
+    sql_on: ${orders.id} = ${order_summary.order_id} ;;
+    # Pre-aggregated summary table for performance
+  }
+  
+  join: customer_segments {
+    type: left_outer
+    relationship: many_to_one
+    sql_on: ${customers.segment_id} = ${customer_segments.id} ;;
+    sql_always_where: ${customer_segments.is_active} = true ;;
+    # Filter inactive segments at join time
+  }
+}
+```
+
+### Fan-out Control
+```lookml
+explore: customer_orders {
+  join: order_items {
+    type: left_outer
+    relationship: one_to_many
+    sql_on: ${orders.id} = ${order_items.order_id} ;;
+    # Be careful with one-to-many joins - they can cause fan-out
+  }
+  
+  # Use aggregate tables to avoid fan-out issues
+  join: order_totals {
+    type: left_outer
+    relationship: one_to_one
+    sql_on: ${orders.id} = ${order_totals.order_id} ;;
+    # Pre-aggregated totals prevent double-counting
+  }
+}
+```
+
+These join parameters provide precise control over how data is combined, ensuring accurate results while optimizing performance and maintaining security. The key is choosing the right combination based on your data relationships and business requirements.
+
+---
+
+In LookML, `extends` is a powerful inheritance mechanism that allows you to create new views or explores based on existing ones, inheriting their properties while adding, modifying, or overriding specific elements. This promotes code reusability and maintainability.
+
+## View Extensions
+
+### Basic View Extension
+```lookml
+# Base view
+view: base_customers {
+  sql_table_name: public.customers ;;
+  
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: name {
+    type: string
+    sql: ${TABLE}.full_name ;;
+  }
+  
+  dimension: email {
+    type: string
+    sql: ${TABLE}.email ;;
+  }
+  
+  dimension: created_date {
+    type: date
+    sql: ${TABLE}.created_at ;;
+  }
+  
+  measure: customer_count {
+    type: count
+  }
+}
+
+# Extended view - inherits all fields from base_customers
+view: customers {
+  extends: [base_customers]
+  
+  # Add new fields
+  dimension: customer_tier {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${lifetime_value} >= 10000 THEN 'VIP'
+        WHEN ${lifetime_value} >= 1000 THEN 'Premium'
+        ELSE 'Standard'
+      END ;;
+  }
+  
+  dimension: lifetime_value {
+    type: number
+    sql: ${TABLE}.total_spent ;;
+    value_format_name: usd
+  }
+  
+  # Override inherited field
+  dimension: name {
+    type: string
+    sql: UPPER(${TABLE}.full_name) ;;  # Override to show uppercase names
+    label: "Customer Name (Upper Case)"
+  }
+  
+  # Add new measures
+  measure: average_lifetime_value {
+    type: average
+    sql: ${lifetime_value} ;;
+    value_format_name: usd
+  }
+}
+```
+
+### Multiple Inheritance
+```lookml
+# Base demographic fields
+view: demographic_base {
+  dimension: age_group {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${age} < 25 THEN '18-24'
+        WHEN ${age} < 35 THEN '25-34'
+        WHEN ${age} < 50 THEN '35-49'
+        ELSE '50+'
+      END ;;
+  }
+  
+  dimension: age {
+    type: number
+    sql: EXTRACT(YEAR FROM CURRENT_DATE) - EXTRACT(YEAR FROM ${birth_date}) ;;
+  }
+}
+
+# Base geographic fields
+view: geographic_base {
+  dimension: region {
+    type: string
+    sql: 
+      CASE 
+        WHEN ${state} IN ('CA', 'OR', 'WA') THEN 'West Coast'
+        WHEN ${state} IN ('NY', 'NJ', 'CT') THEN 'Northeast'
+        WHEN ${state} IN ('TX', 'FL', 'GA') THEN 'South'
+        ELSE 'Other'
+      END ;;
+  }
+  
+  dimension: state {
+    type: string
+    sql: ${TABLE}.state ;;
+  }
+}
+
+# Extended view inheriting from multiple parents
+view: customer_profile {
+  extends: [base_customers, demographic_base, geographic_base]
+  
+  dimension: birth_date {
+    type: date
+    sql: ${TABLE}.date_of_birth ;;
+  }
+  
+  # Now has access to all fields from all three parent views
+  dimension: customer_summary {
+    type: string
+    sql: CONCAT(${name}, ' - ', ${age_group}, ' - ', ${region}) ;;
+  }
+}
+```
+
+## Explore Extensions
+
+### Basic Explore Extension
+```lookml
+# Base explore
+explore: base_sales {
+  view_name: orders
+  
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  join: products {
+    type: left_outer
+    sql_on: ${orders.product_id} = ${products.id} ;;
+  }
+}
+
+# Extended explore - inherits all joins and configurations
+explore: sales_analysis {
+  extends: [base_sales]
+  
+  # Add additional joins
+  join: customer_segments {
+    type: left_outer
+    sql_on: ${customers.segment_id} = ${customer_segments.id} ;;
+  }
+  
+  join: promotions {
+    type: left_outer
+    sql_on: ${orders.promo_code} = ${promotions.code} ;;
+  }
+  
+  # Override inherited join
+  join: customers {
+    type: inner  # Change from left_outer to inner
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+    sql_always_where: ${customers.status} = 'active' ;;  # Add filter
+  }
+  
+  # Add explore-level filters
+  always_filter: {
+    filters: [orders.created_date: "30 days"]
+  }
+}
+```
+
+### Conditional Extensions
+```lookml
+# Base explore for general sales analysis
+explore: sales_base {
+  view_name: orders
+  
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+  }
+  
+  join: products {
+    type: left_outer
+    sql_on: ${orders.product_id} = ${products.id} ;;
+  }
+}
+
+# Executive dashboard - simplified view
+explore: executive_sales {
+  extends: [sales_base]
+  label: "Executive Sales Dashboard"
+  
+  # Hide detailed fields, show only high-level metrics
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.id} ;;
+    fields: [customers.customer_tier, customers.region, customers.customer_count]
+  }
+  
+  join: products {
+    type: left_outer
+    sql_on: ${orders.product_id} = ${products.id} ;;
+    fields: [products.category, products.brand, products.total_revenue]
+  }
+  
+  # Add executive-specific filters
+  sql_always_where: ${orders.order_total} > 0 ;;
+}
+
+# Detailed analysis for analysts
+explore: detailed_sales {
+  extends: [sales_base]
+  label: "Detailed Sales Analysis"
+  
+  # Add more detailed joins
+  join: order_items {
+    type: left_outer
+    sql_on: ${orders.id} = ${order_items.order_id} ;;
+  }
+  
+  join: inventory {
+    type: left_outer
+    sql_on: ${products.sku} = ${inventory.sku} ;;
+  }
+  
+  join: sales_reps {
+    type: left_outer
+    sql_on: ${orders.sales_rep_id} = ${sales_reps.id} ;;
+  }
+}
+```
+
+## Real-World Examples
+
+### Multi-Tenant Application
+```lookml
+# Base view for multi-tenant data
+view: tenant_base {
+  dimension: tenant_id {
+    type: string
+    sql: ${TABLE}.tenant_id ;;
+    hidden: yes  # Hide from users but use in filters
+  }
+  
+  # Automatic tenant filtering
+  sql_always_where: ${tenant_id} = '{{ _user_attributes['tenant_id'] }}' ;;
+}
+
+# Customer view with tenant filtering
+view: customers {
+  extends: [tenant_base]
+  sql_table_name: customers ;;
+  
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: name {
+    type: string
+    sql: ${TABLE}.name ;;
+  }
+  
+  # Inherits tenant_id and filtering automatically
+}
+
+# Orders view with tenant filtering
+view: orders {
+  extends: [tenant_base]
+  sql_table_name: orders ;;
+  
+  dimension: order_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.total ;;
+  }
+  
+  # Also inherits tenant filtering
+}
+```
+
+### Environment-Specific Extensions
+```lookml
+# Base production view
+view: production_orders {
+  sql_table_name: prod.orders ;;
+  
+  dimension: order_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.amount ;;
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+  }
+}
+
+# Development environment extension
+view: dev_orders {
+  extends: [production_orders]
+  sql_table_name: dev.orders ;;  # Different table
+  
+  # Add debugging fields only available in dev
+  dimension: debug_info {
+    type: string
+    sql: ${TABLE}.debug_data ;;
+    hidden: no  # Visible in dev environment
+  }
+  
+  dimension: test_flag {
+    type: yesno
+    sql: ${TABLE}.is_test_data ;;
+  }
+  
+  # Override measure to exclude test data
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    filters: [test_flag: "no"]
+  }
+}
+```
+
+### Role-Based View Extensions
+```lookml
+# Base customer view
+view: customer_base {
+  sql_table_name: customers ;;
+  
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: name {
+    type: string
+    sql: ${TABLE}.full_name ;;
+  }
+  
+  dimension: email {
+    type: string
+    sql: ${TABLE}.email ;;
+  }
+}
+
+# Sales team view - can see contact info
+view: customers_sales {
+  extends: [customer_base]
+  view_label: "Customers (Sales View)"
+  
+  dimension: phone {
+    type: string
+    sql: ${TABLE}.phone ;;
+  }
+  
+  dimension: sales_notes {
+    type: string
+    sql: ${TABLE}.notes ;;
+  }
+  
+  measure: qualified_leads {
+    type: count
+    filters: [lead_status: "qualified"]
+  }
+}
+
+# Marketing team view - can see campaign data
+view: customers_marketing {
+  extends: [customer_base]
+  view_label: "Customers (Marketing View)"
+  
+  dimension: email_opt_in {
+    type: yesno
+    sql: ${TABLE}.email_marketing_consent ;;
+  }
+  
+  dimension: last_campaign {
+    type: string
+    sql: ${TABLE}.last_campaign_id ;;
+  }
+  
+  measure: email_subscribers {
+    type: count
+    filters: [email_opt_in: "yes"]
+  }
+}
+
+# Public/limited view - minimal information
+view: customers_public {
+  extends: [customer_base]
+  view_label: "Customer Summary"
+  
+  # Override to hide sensitive info
+  dimension: email {
+    type: string
+    sql: 'HIDDEN' ;;  # Don't show actual email
+  }
+  
+  # Add aggregated, non-sensitive data
+  dimension: customer_since_year {
+    type: string
+    sql: EXTRACT(YEAR FROM ${TABLE}.created_at) ;;
+  }
+}
+```
+
+## Advanced Extension Patterns
+
+### Template Pattern
+```lookml
+# Template for financial metrics
+view: financial_metrics_template {
+  measure: total_revenue {
+    type: sum
+    sql: ${revenue_field} ;;
+    value_format_name: usd
+  }
+  
+  measure: average_revenue {
+    type: average
+    sql: ${revenue_field} ;;
+    value_format_name: usd
+  }
+  
+  measure: revenue_rank {
+    type: rank
+    sql: ${total_revenue} ;;
+  }
+}
+
+# Specific implementation
+view: product_financials {
+  extends: [financial_metrics_template]
+  sql_table_name: product_sales ;;
+  
+  # Define the revenue_field referenced in template
+  dimension: revenue_field {
+    type: number
+    sql: ${TABLE}.product_revenue ;;
+    hidden: yes
+  }
+  
+  dimension: product_id {
+    type: number
+    sql: ${TABLE}.product_id ;;
+  }
+  
+  # Inherits all financial measures
+}
+```
+
+### Override and Extension Chain
+```lookml
+# Level 1: Base
+view: base_entity {
+  dimension: id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+  
+  dimension: name {
+    type: string
+    sql: ${TABLE}.name ;;
+  }
+}
+
+# Level 2: Add common business logic
+view: business_entity {
+  extends: [base_entity]
+  
+  dimension: status {
+    type: string
+    sql: ${TABLE}.status ;;
+  }
+  
+  dimension: is_active {
+    type: yesno
+    sql: ${status} = 'active' ;;
+  }
+}
+
+# Level 3: Specific implementation
+view: customers {
+  extends: [business_entity]
+  sql_table_name: customers ;;
+  
+  dimension: customer_type {
+    type: string
+    sql: ${TABLE}.type ;;
+  }
+  
+  # Override name to include customer type
+  dimension: name {
+    type: string
+    sql: CONCAT(${TABLE}.name, ' (', ${customer_type}, ')') ;;
+  }
+}
+```
+
+## Best Practices
+
+### Organizing Extensions
+```lookml
+# Keep base views in separate files for clarity
+# _base_views.view (underscore prefix indicates it's a base)
+
+# Use descriptive extend names
+extends: [customer_base, demographic_mixin, security_filters]
+
+# Document what each extension adds
+view: enhanced_customers {
+  extends: [customer_base]  # Basic customer fields
+  # Extensions add: demographic analysis, security filtering, and marketing metrics
+  
+  # New fields here...
+}
+```
+
+### Performance Considerations
+```lookml
+# Base view optimized for performance
+view: optimized_base {
+  sql_table_name: 
+    (SELECT * FROM large_table 
+     WHERE created_date >= CURRENT_DATE - 90) ;;  # Pre-filter for performance
+  
+  dimension: id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+  }
+}
+
+# Extended views inherit the optimization
+view: recent_data_analysis {
+  extends: [optimized_base]
+  
+  # All queries automatically include the 90-day filter
+  measure: recent_count {
+    type: count
+  }
+}
+```
+
+Extensions in LookML provide powerful inheritance capabilities that promote code reuse, maintainability, and consistency across your data model while allowing for customization and specialization where needed.
+
+---
+
+In LookML, tests and assertions are data quality validation mechanisms that help ensure your data model produces accurate, consistent results. They're essential for maintaining data integrity and catching issues early in the development process.
+
+## Types of Tests in LookML
+
+### 1. Data Tests
+Data tests validate the actual data returned by your queries and measures.
+
+#### Basic Data Tests
+```lookml
+view: customers {
+  sql_table_name: public.customers ;;
+  
+  dimension: customer_id {
+    type: number
+    primary_key: yes
+    sql: ${TABLE}.id ;;
+    
+    # Test that customer_id is never null
+    test: customer_id_not_null {
+      explore_source: customers {
+        column: customer_id {}
+        filters: [
+          customers.customer_id: "NULL"
+        ]
+      }
+      assert: customer_id_not_null {
+        expression: ${customers.count} = 0 ;;
+        # Should return 0 rows with null customer_id
+      }
+    }
+  }
+  
+  dimension: email {
+    type: string
+    sql: ${TABLE}.email ;;
+    
+    # Test email format validation
+    test: valid_email_format {
+      explore_source: customers {
+        column: email {}
+        column: count {}
+        filters: [
+          customers.email: "-%@%.%"  # Invalid email pattern
+        ]
+      }
+      assert: no_invalid_emails {
+        expression: ${customers.count} = 0 ;;
+      }
+    }
+  }
+  
+  measure: count {
+    type: count
+  }
+}
+```
+
+#### Revenue Validation Tests
+```lookml
+view: orders {
+  sql_table_name: public.orders ;;
+  
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.order_total ;;
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+    value_format_name: usd
+  }
+  
+  measure: count {
+    type: count
+  }
+  
+  # Test that revenue is always positive
+  test: revenue_positive {
+    explore_source: orders {
+      column: total_revenue {}
+      filters: [
+        orders.order_total: "<0"
+      ]
+    }
+    assert: no_negative_revenue {
+      expression: ${orders.total_revenue} = 0 ;;
+      # Sum of negative orders should be 0 (no negative orders exist)
+    }
+  }
+  
+  # Test that order totals match line item sums
+  test: order_total_consistency {
+    explore_source: orders {
+      column: order_id {}
+      column: order_total {}
+      column: calculated_total {
+        field: order_line_items.line_total
+      }
+    }
+    assert: totals_match {
+      expression: ${orders.order_total} = ${order_line_items.line_total} ;;
+    }
+  }
+}
+```
+
+### 2. Relationship Tests
+Test the integrity of joins and relationships between tables.
+
+```lookml
+explore: orders {
+  join: customers {
+    type: left_outer
+    sql_on: ${orders.customer_id} = ${customers.customer_id} ;;
+  }
+  
+  # Test referential integrity
+  test: customer_referential_integrity {
+    explore_source: orders {
+      column: customer_id {}
+      column: count {}
+      filters: [
+        customers.customer_id: "NULL"  # Orders without matching customers
+      ]
+    }
+    assert: all_orders_have_customers {
+      expression: ${orders.count} = 0 ;;
+      # Should be 0 orders without matching customers
+    }
+  }
+  
+  # Test for duplicate relationships
+  test: no_duplicate_customers {
+    explore_source: customers {
+      column: customer_id {}
+      column: count {}
+      having: [
+        customers.count: ">1"
+      ]
+    }
+    assert: unique_customer_ids {
+      expression: ${customers.count} = 0 ;;
+      # Should be 0 duplicate customer IDs
+    }
+  }
+}
+```
+
+### 3. Business Logic Tests
+Validate complex business rules and calculations.
+
+```lookml
+view: sales_metrics {
+  
+  dimension: order_date {
+    type: date
+    sql: ${TABLE}.order_date ;;
+  }
+  
+  dimension: order_total {
+    type: number
+    sql: ${TABLE}.order_total ;;
+  }
+  
+  measure: total_revenue {
+    type: sum
+    sql: ${order_total} ;;
+  }
+  
+  measure: order_count {
+    type: count
+  }
+  
+  measure: average_order_value {
+    type: number
+    sql: ${total_revenue} / NULLIF(${order_count}, 0) ;;
+  }
+  
+  # Test business rule: AOV calculation
+  test: aov_calculation_accuracy {
+    explore_source: sales_metrics {
+      column: total_revenue {}
+      column: order_count {}
+      column: average_order_value {}
+      filters: [
+        sales_metrics.order_date: "7 days"
+      ]
+    }
+    assert: aov_matches_manual_calculation {
+      expression: 
+        ABS(${sales_metrics.average_order_value} - 
+            (${sales_metrics.total_revenue} / ${sales_metrics.order_count})) < 0.01 ;;
+      # AOV should match manual calculation within 1 cent
+    }
+  }
+  
+  # Test seasonal business rule
+  test: q4_revenue_boost {
+    explore_source: sales_metrics {
+      column: order_date { field: sales_metrics.order_month }
+      column: total_revenue {}
+    }
+    assert: q4_higher_than_q3 {
+      expression: 
+        {% assign q4_revenue = 0 %}
+        {% assign q3_revenue = 0 %}
+        {% for row in query_result %}
+          {% assign month = row['sales_metrics.order_month'] | date: '%m' %}
+          {% if month >= '10' %}
+            {% assign q4_revenue = q4_revenue | plus: row['sales_metrics.total_revenue'] %}
+          {% elsif month >= '07' and month <= '09' %}
+            {% assign q3_revenue = q3_revenue | plus: row['sales_metrics.total_revenue'] %}
+          {% endif %}
+        {% endfor %}
+        {{ q4_revenue }} > {{ q3_revenue }} ;;
+    }
+  }
+}
+```
+
+### 4. Dimension Group Tests
+Test time-based logic and dimension groups.
+
+```lookml
+view: time_analysis {
+  
+  dimension_group: created {
+    type: time
+    timeframes: [raw, date, week, month, quarter, year]
+    sql: ${TABLE}.created_at ;;
+  }
+  
+  dimension: is_weekend {
+    type: yesno
+    sql: EXTRACT(DOW FROM ${created_date}) IN (0, 6) ;;
+  }
+  
+  measure: count {
+    type: count
+  }
+  
+  # Test weekend logic
+  test: weekend_classification {
+    explore_source: time_analysis {
+      column: created_day_of_week {}
+      column: is_weekend {}
+      column: count {}
+    }
+    assert: saturday_sunday_are_weekend {
+      expression: 
+        {% for row in query_result %}
+          {% assign dow = row['time_analysis.created_day_of_week'] %}
+          {% assign is_weekend = row['time_analysis.is_weekend'] %}
+          {% if dow == 'Saturday' or dow == 'Sunday' %}
+            {% unless is_weekend == 'Yes' %}
+              false
+              {% break %}
+            {% endunless %}
+          {% else %}
+            {% if is_weekend == 'Yes' %}
+              false
+              {% break %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        true ;;
+    }
+  }
+  
+  # Test date consistency
+  test: date_timeframes_consistency {
+    explore_source: time_analysis {
+      column: created_date {}
+      column: created_month {}
+      column: created_year {}
+    }
+    assert: date_parts_match {
+      expression: 
+        EXTRACT(MONTH FROM ${time_analysis.created_date}) = EXTRACT(MONTH FROM ${time_analysis.created_month})
+        AND EXTRACT(YEAR FROM ${time_analysis.created_date}) = ${time_analysis.created_year} ;;
+    }
+  }
+}
+```
+
+## Advanced Testing Patterns
+
+### 5. Cross-View Consistency Tests
+```lookml
+# Test data consistency across different views
+test: customer_order_consistency {
+  explore_source: orders {
+    column: customer_count { field: customers.count }
+    join: [customers]
+  }
+  
+  explore_source: customers {
+    column: customer_count { field: customers.count }
+  }
+  
+  assert: customer_counts_match {
+    expression: 
+      ${orders.customer_count} = ${customers.customer_count} ;;
+    # Customer count should be same in both contexts
+  }
+}
+
+# Test aggregate consistency
+test: revenue_aggregation_consistency {
+  explore_source: orders {
+    column: total_revenue {}
+  }
+  
+  explore_source: daily_revenue_summary {
+    column: sum_daily_revenue { field: daily_revenue_summary.total_revenue }
+  }
+  
+  assert: daily_sum_equals_order_sum {
+    expression: 
+      ABS(${orders.total_revenue} - ${daily_revenue_summary.sum_daily_revenue}) < 1.00 ;;
+    # Daily aggregates should sum to order total within $1
+  }
+}
+```
+
+### 6. Performance and Data Volume Tests
+```lookml
+view: performance_monitoring {
+  
+  measure: row_count {
+    type: count
+  }
+  
+  measure: distinct_customers {
+    type: count_distinct
+    sql: ${customer_id} ;;
+  }
+  
+  # Test for unexpected data volume changes
+  test: data_volume_stability {
+    explore_source: performance_monitoring {
+      column: row_count {}
+      filters: [
+        performance_monitoring.created_date: "yesterday"
+      ]
+    }
+    assert: reasonable_daily_volume {
+      expression: 
+        ${performance_monitoring.row_count} > 1000 
+        AND ${performance_monitoring.row_count} < 100000 ;;
+      # Daily volume should be between 1K and 100K rows
+    }
+  }
+  
+  # Test for data freshness
+  test: data_freshness {
+    explore_source: performance_monitoring {
+      column: max_date { field: performance_monitoring.created_date }
+    }
+    assert: data_is_recent {
+      expression: 
+        DATE_DIFF(CURRENT_DATE, ${performance_monitoring.max_date}, DAY) <= 1 ;;
+      # Data should be no more than 1 day old
+    }
+  }
+}
+```
+
+### 7. User Attribute and Security Tests
+```lookml
+# Test row-level security
+test: user_security_filtering {
+  explore_source: orders {
+    column: count {}
+    filters: [
+      # Simulate user with specific attributes
+      orders.region: "{% if _user_attributes['region'] == 'US' %}US{% else %}International{% endif %}"
+    ]
+  }
+  
+  assert: proper_data_filtering {
+    expression: 
+      {% if _user_attributes['region'] == 'US' %}
+        ${orders.count} > 0  # US users should see US data
+      {% else %}
+        ${orders.count} >= 0  # International users see international data
+      {% endif %} ;;
+  }
+}
+```
+
+## Test Execution and Monitoring
+
+### 8. Comprehensive Test Suite
+```lookml
+# Master test view combining multiple test categories
+view: data_quality_tests {
+  
+  # Data integrity tests
+  test: primary_key_uniqueness {
+    explore_source: customers {
+      column: customer_id {}
+      column: count {}
+      having: [customers.count: ">1"]
+    }
+    assert: no_duplicate_primary_keys {
+      expression: ${customers.count} = 0 ;;
+    }
+  }
+  
+  # Business rule tests
+  test: customer_lifecycle_logic {
+    explore_source: customers {
+      column: registration_date { field: customers.created_date }
+      column: first_order_date { field: orders.min_order_date }
+      join: [orders]
+    }
+    assert: first_order_after_registration {
+      expression: ${orders.min_order_date} >= ${customers.created_date} ;;
+    }
+  }
+  
+  # Performance tests
+  test: query_performance {
+    explore_source: orders {
+      column: total_revenue {}
+      column: count {}
+      filters: [orders.created_date: "30 days"]
+    }
+    assert: reasonable_response_time {
+      # This would be monitored externally, but structure is here
+      expression: true ;;  # Placeholder for performance monitoring
+    }
+  }
+}
+```
+
+### 9. Test Documentation and Maintenance
+```lookml
+view: documented_tests {
+  
+  # Well-documented test with clear purpose
+  test: order_status_completeness {
+    # PURPOSE: Ensure all orders have valid status values
+    # BUSINESS IMPACT: Invalid statuses can break reporting dashboards
+    # FREQUENCY: Run daily
+    # OWNER: Data Engineering Team
+    
+    explore_source: orders {
+      column: count {}
+      filters: [
+        orders.order_status: "NULL,-shipped,-pending,-cancelled,-delivered"
+      ]
+    }
+    
+    assert: all_orders_have_valid_status {
+      expression: ${orders.count} = 0 ;;
+      # Zero orders should have invalid or null status
+    }
+  }
+}
+```
+
+## Best Practices for Testing
+
+### 10. Modular Testing Approach
+```lookml
+# Separate test files for different domains
+# _customer_tests.view
+view: customer_tests {
+  test: customer_email_validity { ... }
+  test: customer_uniqueness { ... }
+}
+
+# _financial_tests.view  
+view: financial_tests {
+  test: revenue_consistency { ... }
+  test: pricing_validation { ... }
+}
+
+# _integration_tests.view
+view: integration_tests {
+  test: cross_table_consistency { ... }
+  test: data_pipeline_integrity { ... }
+}
+```
+
+Tests and assertions in LookML provide a robust framework for ensuring data quality, business rule compliance, and model accuracy. They serve as early warning systems for data issues and help maintain confidence in your analytics platform as it scales and evolves.
